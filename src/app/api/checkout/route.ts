@@ -1,7 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { builtWatches } from "@/data/watches";
 import { createServerClient } from "@/lib/supabase/server";
-import { getSiteUrl, stripe } from "@/lib/stripe";
+import { getSiteUrl, getStripe } from "@/lib/stripe";
 
 export async function POST(request: NextRequest) {
   const payload = await request.json();
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
   }
 
   const siteUrl = getSiteUrl();
+  const stripe = getStripe();
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     line_items: [

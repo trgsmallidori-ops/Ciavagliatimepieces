@@ -2,7 +2,7 @@
 import Stripe from "stripe";
 import { sendOrderEmails } from "@/lib/email";
 import { createServerClient } from "@/lib/supabase/server";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 
 export async function POST(request: NextRequest) {
   const signature = request.headers.get("stripe-signature");
@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
   let event: Stripe.Event;
 
   try {
+    const stripe = getStripe();
     event = stripe.webhooks.constructEvent(
       payload,
       signature,

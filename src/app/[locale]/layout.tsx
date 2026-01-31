@@ -18,15 +18,15 @@ export default async function LocaleLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: Promise<{ locale: Locale }>;
+  params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
 
-  if (!locales.includes(locale)) {
+  if (!locales.includes(locale as Locale)) {
     notFound();
   }
 
-  const dictionary = getDictionary(locale);
+  const dictionary = getDictionary(locale as Locale);
 
   return (
     <div className="min-h-screen">
