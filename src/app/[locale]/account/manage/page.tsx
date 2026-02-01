@@ -66,7 +66,7 @@ export default function ManageAccountPage({ params }: { params: { locale: string
             </h1>
             <p className="mt-4 text-foreground/70">
               {isFr
-                ? "Gérez vos configurations, livraisons et commandes."
+                ? "GÃ©rez vos configurations, livraisons et commandes."
                 : "Review your saved configurations, shipping details, and order history in one place."}
             </p>
           </div>
@@ -85,12 +85,12 @@ export default function ManageAccountPage({ params }: { params: { locale: string
                   <h2 className="text-2xl">{isFr ? "Profil" : "Profile details"}</h2>
                   <div className="mt-4 grid gap-2 text-sm text-foreground/70">
                     <p>{isFr ? "Nom" : "Name"}: {profile?.full_name ?? "Not set"}</p>
-                    <p>{isFr ? "Téléphone" : "Phone"}: {profile?.phone ?? "Not set"}</p>
+                    <p>{isFr ? "TÃ©lÃ©phone" : "Phone"}: {profile?.phone ?? "Not set"}</p>
                     <p>
                       {isFr ? "Adresse" : "Address"}: {profile?.shipping_address ?? "Not set"}, {profile?.city ?? ""} {profile?.postal_code ?? ""}
                     </p>
                     <p>{isFr ? "Pays" : "Country"}: {profile?.country ?? "Not set"}</p>
-                    <p>{isFr ? "Préférences" : "Preferences"}: {profile?.preferences ?? "Not set"}</p>
+                    <p>{isFr ? "PrÃ©fÃ©rences" : "Preferences"}: {profile?.preferences ?? "Not set"}</p>
                   </div>
                 </div>
               </ScrollReveal>
@@ -99,7 +99,7 @@ export default function ManageAccountPage({ params }: { params: { locale: string
                   <h2 className="text-2xl">{isFr ? "Configurations" : "Saved configurations"}</h2>
                   <p className="mt-3 text-foreground/70">
                     {isFr
-                      ? "Vos configurations apparaissent ici après création."
+                      ? "Vos configurations apparaissent ici aprÃ¨s crÃ©ation."
                       : "Your configurations appear here after you build them in the configurator."}
                   </p>
                 </div>

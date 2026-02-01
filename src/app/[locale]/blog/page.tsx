@@ -8,7 +8,7 @@ const posts = [
   },
   {
     title: "Choosing the right movement",
-    excerpt: "Manual vs automatic vs tourbillon—how to pick your heartbeat.",
+    excerpt: "Manual vs automatic vs tourbillonâ€”how to pick your heartbeat.",
     date: "Dec 22, 2025",
   },
   {
