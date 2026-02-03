@@ -194,7 +194,7 @@ export default function SignUpPage() {
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
                 type="submit"
-                className="w-full rounded-full bg-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] text-white"
+                className="btn-hover w-full rounded-full bg-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] text-white"
                 disabled={loading}
               >
                 {loading ? (isFr ? "Creation..." : "Creating account...") : isFr ? "Creer un compte" : "Create account"}

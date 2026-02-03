@@ -89,20 +89,20 @@ export default function HeroCarousel({
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           <Link
             href={`/${locale}/configurator`}
-            className="rounded-full bg-white px-6 py-3 text-sm font-medium uppercase tracking-[0.3em] text-foreground transition hover:bg-white/95"
+            className="btn-hover rounded-full bg-white px-6 py-3 text-sm font-medium uppercase tracking-[0.3em] text-foreground transition hover:bg-white/95"
           >
             {ctaPrimary}
           </Link>
           <Link
             href={`/${locale}/shop`}
-            className="rounded-full border-2 border-white/80 px-6 py-3 text-sm uppercase tracking-[0.3em] text-white transition hover:border-white hover:bg-white/10"
+            className="btn-hover rounded-full border-2 border-white/80 px-6 py-3 text-sm uppercase tracking-[0.3em] text-white transition hover:border-white hover:bg-white/10"
           >
             {ctaSecondary}
           </Link>
           {current.link_url && (
             <Link
               href={current.link_url.startsWith("http") ? current.link_url : `/${locale}${current.link_url.startsWith("/") ? current.link_url : `/${current.link_url}`}`}
-              className="rounded-full bg-foreground px-6 py-3 text-sm font-medium uppercase tracking-[0.3em] text-white transition hover:bg-foreground/90"
+              className="btn-hover rounded-full bg-foreground px-6 py-3 text-sm font-medium uppercase tracking-[0.3em] text-white transition hover:bg-foreground/90"
             >
               {purchaseLabel}
             </Link>

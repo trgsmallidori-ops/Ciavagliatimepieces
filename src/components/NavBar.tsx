@@ -17,6 +17,7 @@ type NavLabels = {
   contact: string;
   blog: string;
   account: string;
+  cart: string;
   signIn: string;
   createAccount: string;
   logout: string;
@@ -47,8 +48,36 @@ export default function NavBar({
   const isAdminCentre = pathname?.includes("/account/admin") ?? false;
   const [hidden, setHidden] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [cartCount, setCartCount] = useState(0);
   const lastScrollY = useRef(0);
   const scrollThreshold = 10;
+
+  useEffect(() => {
+    if (!user) {
+      setCartCount(0);
+      return;
+    }
+    const supabase = createBrowserClient();
+    supabase
+      .from("cart_items")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .then(({ count }) => setCartCount(count ?? 0));
+  }, [user, pathname]);
+
+  useEffect(() => {
+    const onCartUpdate = () => {
+      if (!user) return;
+      const supabase = createBrowserClient();
+      supabase
+        .from("cart_items")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .then(({ count }) => setCartCount(count ?? 0));
+    };
+    window.addEventListener("cart-updated", onCartUpdate);
+    return () => window.removeEventListener("cart-updated", onCartUpdate);
+  }, [user]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -114,6 +143,20 @@ export default function NavBar({
           ))}
         </nav>
         <div className="flex items-center gap-4">
+          <Link
+            href={user ? `/${activeLocale}/cart` : `/${activeLocale}/account/login`}
+            className="relative flex items-center gap-1 rounded-full border border-foreground/20 px-3 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
+            aria-label={labels.cart}
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white">
+                {cartCount > 99 ? "99+" : cartCount}
+              </span>
+            )}
+          </Link>
           {user ? (
               <>
                 <Link
@@ -125,7 +168,7 @@ export default function NavBar({
                 {isAdmin && (
                   <Link
                     href={`/${activeLocale}/account/admin`}
-                    className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
+                    className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
                   >
                     Admin
                   </Link>
@@ -133,7 +176,7 @@ export default function NavBar({
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
+                  className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
                 >
                   {labels.logout}
                 </button>
@@ -142,13 +185,13 @@ export default function NavBar({
               <>
                 <Link
                   href={`/${activeLocale}/account/login`}
-                  className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
+                  className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
                 >
                   {labels.signIn}
                 </Link>
                 <Link
                   href={`/${activeLocale}/account/sign-up`}
-                  className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
+                  className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
                 >
                   {labels.createAccount}
                 </Link>

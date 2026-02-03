@@ -224,7 +224,7 @@ export default function Configurator({ locale }: { locale: string }) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-background px-6 text-foreground">
         <p className="text-center">{isFr ? "Aucune étape configurée. Ajoutez des étapes et options dans l’admin." : "No configurator steps set up. Add steps and options in the admin."}</p>
-        <Link href={`/${locale}/account/admin/configurator`} className="rounded-full bg-accent px-6 py-3 text-sm font-medium text-white transition hover:bg-accent-strong">
+        <Link href={`/${locale}/account/admin/configurator`} className="btn-hover rounded-full bg-accent px-6 py-3 text-sm font-medium text-white transition hover:bg-accent-strong">
           {isFr ? "Aller à l’admin" : "Go to admin"}
         </Link>
       </div>
@@ -240,7 +240,7 @@ export default function Configurator({ locale }: { locale: string }) {
         <button
           type="button"
           onClick={handleStartOver}
-          className="flex items-center gap-2 text-sm text-foreground/70 transition hover:text-foreground"
+          className="btn-hover flex items-center gap-2 text-sm text-foreground/70 transition hover:text-foreground"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -335,7 +335,7 @@ export default function Configurator({ locale }: { locale: string }) {
                           setSelection(opt.id);
                         }
                       }}
-                      className={`flex flex-col items-center rounded-[22px] border-2 p-4 text-left transition shadow-md ${
+                      className={`btn-hover flex flex-col items-center rounded-[22px] border-2 p-4 text-left transition shadow-md ${
                         selected ? "border-accent bg-accent/20 ring-2 ring-accent/50 ring-offset-2 ring-offset-background" : "border-foreground/30 bg-white hover:border-foreground/50 hover:shadow-lg"
                       }`}
                     >
@@ -432,7 +432,7 @@ export default function Configurator({ locale }: { locale: string }) {
                   type="button"
                   onClick={() => setStepIndex((s) => Math.max(0, s - 1))}
                   disabled={stepIndex === 0}
-                  className="rounded-[22px] border-2 border-foreground/40 bg-white px-5 py-2.5 text-sm font-medium text-foreground shadow-md transition hover:bg-surface-strong hover:border-foreground/60 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="btn-hover rounded-[22px] border-2 border-foreground/40 bg-white px-5 py-2.5 text-sm font-medium text-foreground shadow-md transition hover:bg-surface-strong hover:border-foreground/60 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   ← {isFr ? "Retour" : "Back"}
                 </button>
@@ -440,7 +440,7 @@ export default function Configurator({ locale }: { locale: string }) {
                   type="button"
                   onClick={handleContinue}
                   disabled={!canContinue()}
-                  className="rounded-[22px] border-2 border-foreground bg-white px-6 py-2.5 text-sm font-bold text-foreground shadow-lg ring-2 ring-foreground/30 ring-offset-2 ring-offset-background transition hover:bg-foreground hover:text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:ring-0"
+                  className="btn-hover rounded-[22px] border-2 border-foreground bg-white px-6 py-2.5 text-sm font-bold text-foreground shadow-lg ring-2 ring-foreground/30 ring-offset-2 ring-offset-background transition hover:bg-foreground hover:text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:ring-0"
                 >
                   {stepIndex < steps.length - 1
                     ? `${isFr ? "Continuer" : "Continue"} →`
@@ -458,7 +458,7 @@ export default function Configurator({ locale }: { locale: string }) {
         <button
           type="button"
           onClick={() => setTotalExpanded((e) => !e)}
-          className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-xl)] border-2 border-foreground/25 bg-white px-4 py-3 shadow-lg backdrop-blur-sm transition hover:border-foreground/40 hover:shadow-xl"
+          className="btn-hover flex w-full items-center justify-between gap-3 rounded-[var(--radius-xl)] border-2 border-foreground/25 bg-white px-4 py-3 shadow-lg backdrop-blur-sm transition hover:border-foreground/40 hover:shadow-xl"
           aria-expanded={totalExpanded}
           aria-label={totalExpanded ? (isFr ? "Réduire le total" : "Collapse total") : (isFr ? "Voir le détail du total" : "View total breakdown")}
         >

@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
   }
   const validLocales = ["en", "fr"];
   const localeSegment = validLocales.includes(locale) ? locale : "en";
-  if (type !== "custom" && type !== "built") {
+  if (type !== "custom" && type !== "built" && type !== "cart") {
     return NextResponse.json({ error: "Invalid checkout type" }, { status: 400 });
   }
   if (type === "custom" && !body.configuration) {
@@ -101,6 +101,9 @@ export async function POST(request: NextRequest) {
   if (type === "built" && !body.productId) {
     return NextResponse.json({ error: "Missing product" }, { status: 400 });
   }
+  if (type === "cart" && !userId) {
+    return NextResponse.json({ error: "Sign in to checkout your cart" }, { status: 401 });
+  }
 
   try {
     const supabase = createServerClient();
@@ -108,6 +111,8 @@ export async function POST(request: NextRequest) {
     let summary = "Ciavaglia timepiece";
     let amount = 0;
     let configurationId: string | null = null;
+    type LineItem = { quantity: number; price_data: { currency: string; product_data: { name: string }; unit_amount: number } };
+    const lineItems: LineItem[] = [];
 
     if (type === "custom" && body.configuration) {
       const cfg = body.configuration as Record<string, unknown>;
@@ -135,75 +140,147 @@ export async function POST(request: NextRequest) {
       }
 
       configurationId = data.id;
+      lineItems.push({
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+          product_data: { name: summary },
+          unit_amount: Math.round(amount * 100),
+        },
+      });
     }
 
     if (type === "built" && body.productId) {
-    const { data: product, error: productError } = await supabase
-      .from("products")
-      .select("id, name, price, stock")
-      .eq("id", body.productId)
-      .eq("active", true)
-      .single();
+      const { data: product, error: productError } = await supabase
+        .from("products")
+        .select("id, name, price, stock")
+        .eq("id", body.productId)
+        .eq("active", true)
+        .single();
 
-    if (productError || !product) {
-      return NextResponse.json({ error: "Unknown product" }, { status: 404 });
+      if (productError || !product) {
+        return NextResponse.json({ error: "Unknown product" }, { status: 404 });
+      }
+
+      const stock = product.stock ?? 0;
+      if (stock < 1) {
+        return NextResponse.json({ error: "Out of stock" }, { status: 400 });
+      }
+
+      summary = `Built watch · ${product.name}`;
+      const amount = Number(product.price);
+
+      const { data, error } = await supabase
+        .from("configurations")
+        .insert({
+          type: "built",
+          options: { product_id: product.id, title: product.name },
+          status: "pending",
+          price: amount,
+          user_id: userId ?? null,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+
+      configurationId = data.id;
+      lineItems.push({
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+          product_data: { name: summary },
+          unit_amount: Math.round(amount * 100),
+        },
+      });
     }
 
-    const stock = product.stock ?? 0;
-    if (stock < 1) {
-      return NextResponse.json({ error: "Out of stock" }, { status: 400 });
+    if (type === "cart" && userId) {
+      const { data: cartRows, error: cartError } = await supabase
+        .from("cart_items")
+        .select("id, product_id, quantity, price, title")
+        .eq("user_id", userId);
+
+      if (cartError || !cartRows?.length) {
+        return NextResponse.json({ error: "Your cart is empty" }, { status: 400 });
+      }
+
+      const productIds = [...new Set(cartRows.map((r) => r.product_id))];
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, name, price, stock, active")
+        .in("id", productIds);
+
+      const productMap = new Map((products ?? []).map((p) => [p.id, p]));
+      const cartProductQuantities: { product_id: string; quantity: number }[] = [];
+
+      for (const row of cartRows) {
+        const product = productMap.get(row.product_id);
+        if (!product || !product.active) {
+          return NextResponse.json(
+            { error: `Product "${row.title ?? row.product_id}" is no longer available` },
+            { status: 400 }
+          );
+        }
+        const stock = product.stock ?? 0;
+        const qty = Number(row.quantity) || 1;
+        if (stock < qty) {
+          return NextResponse.json(
+            { error: `Not enough stock for "${row.title ?? product.name}"` },
+            { status: 400 }
+          );
+        }
+        const unitPrice = Number(row.price ?? product.price);
+        lineItems.push({
+          quantity: qty,
+          price_data: {
+            currency: "usd",
+            product_data: { name: row.title ?? product.name },
+            unit_amount: Math.round(unitPrice * 100),
+          },
+        });
+        cartProductQuantities.push({ product_id: row.product_id, quantity: qty });
+      }
+
+      summary = `Cart · ${cartRows.length} item${cartRows.length === 1 ? "" : "s"}`;
     }
 
-    summary = `Built watch · ${product.name}`;
-    amount = Number(product.price);
-
-    const { data, error } = await supabase
-      .from("configurations")
-      .insert({
-        type: "built",
-        options: { product_id: product.id, title: product.name },
-        status: "pending",
-        price: amount,
-        user_id: userId ?? null,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    configurationId = data.id;
+    if (lineItems.length === 0) {
+      return NextResponse.json({ error: "Nothing to checkout" }, { status: 400 });
     }
 
     const siteUrl = getSiteUrl();
     const stripe = getStripe();
-    const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: "usd",
-          product_data: {
-            name: summary,
-          },
-          unit_amount: Math.round(amount * 100),
-        },
-      },
-    ],
-    success_url: `${siteUrl}/${localeSegment}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${siteUrl}/${localeSegment}/checkout/cancel`,
-    metadata: {
+    const metadata: Record<string, string> = {
       configuration_id: configurationId ?? "",
       summary,
       locale,
       type,
-      user_id: userId ?? "",
-    },
-    billing_address_collection: "required",
-    shipping_address_collection: { allowed_countries: ["US", "CA", "GB", "FR", "DE", "IT", "ES", "CH", "AU", "JP"] },
-    allow_promotion_codes: true,
+      user_id: typeof userId === "string" ? userId : "",
+    };
+    if (type === "cart" && userId) {
+      const { data: cartRows } = await supabase
+        .from("cart_items")
+        .select("product_id, quantity")
+        .eq("user_id", userId);
+      const cartProductQuantities = (cartRows ?? []).map((r) => ({
+        product_id: r.product_id,
+        quantity: Number(r.quantity) || 1,
+      }));
+      metadata.cart_product_quantities = JSON.stringify(cartProductQuantities);
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: lineItems,
+      success_url: `${siteUrl}/${localeSegment}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteUrl}/${localeSegment}/checkout/cancel`,
+      metadata,
+      billing_address_collection: "required",
+      shipping_address_collection: { allowed_countries: ["US", "CA", "GB", "FR", "DE", "IT", "ES", "CH", "AU", "JP"] },
+      allow_promotion_codes: true,
     });
 
     return NextResponse.json({ url: session.url });

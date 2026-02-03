@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import ScrollReveal from "@/components/ScrollReveal";
 import { createBrowserClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const params = useParams<{ locale?: string | string[] }>();
+  const searchParams = useSearchParams();
   const locale = Array.isArray(params.locale) ? params.locale[0] : params.locale ?? "en";
   const router = useRouter();
+  const redirectTo = searchParams.get("redirect");
   const isFr = locale === "fr";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,7 +35,11 @@ export default function LoginPage() {
         return;
       }
 
-      router.push(`/${locale}/account/manage`);
+      if (redirectTo && redirectTo.startsWith("/")) {
+        router.push(redirectTo);
+      } else {
+        router.push(`/${locale}/account/manage`);
+      }
     } finally {
       setLoading(false);
     }
@@ -79,7 +85,7 @@ export default function LoginPage() {
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
                 type="submit"
-                className="w-full rounded-full bg-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] text-white"
+                className="btn-hover w-full rounded-full bg-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] text-white"
                 disabled={loading}
               >
                 {loading ? (isFr ? "Connexion..." : "Signing in...") : isFr ? "Connexion" : "Sign in"}

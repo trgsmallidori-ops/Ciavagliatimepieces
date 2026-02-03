@@ -43,6 +43,11 @@
     letter-spacing: -0.02em;
   }
 
+  /* All buttons: pointer cursor (hover lift is via .btn-hover to avoid breaking layout transforms) */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
   ::selection {
     background: rgba(181, 106, 47, 0.2);
   }
@@ -53,6 +58,15 @@
     background: rgba(255, 255, 255, 0.75);
     backdrop-filter: blur(18px);
     box-shadow: var(--shadow);
+  }
+
+  /* Links styled as buttons: same cursor + hover lift */
+  .btn-hover {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+  .btn-hover:hover {
+    transform: translateY(-2px);
   }
 
   .reveal {

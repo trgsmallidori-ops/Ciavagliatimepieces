@@ -105,7 +105,7 @@ export default function AdminOrdersPage() {
             <button
               type="button"
               onClick={handlePrintLabels}
-              className="rounded-full bg-foreground px-5 py-2.5 text-sm font-medium uppercase tracking-[0.2em] text-white transition hover:opacity-90"
+              className="btn-hover rounded-full bg-foreground px-5 py-2.5 text-sm font-medium uppercase tracking-[0.2em] text-white transition hover:opacity-90"
             >
               {isFr ? "Imprimer les étiquettes" : "Print shipping labels"}
             </button>

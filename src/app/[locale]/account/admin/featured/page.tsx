@@ -192,10 +192,10 @@ export default function AdminFeaturedPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={handleAdd} className="rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white">
+              <button type="button" onClick={handleAdd} className="btn-hover rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white">
                 {isFr ? "Créer" : "Create"}
               </button>
-              <button type="button" onClick={() => { setShowAdd(false); setForm({ image_url: "", link_url: "" }); }} className="rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
+              <button type="button" onClick={() => { setShowAdd(false); setForm({ image_url: "", link_url: "" }); }} className="btn-hover rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
                 {isFr ? "Annuler" : "Cancel"}
               </button>
             </div>
@@ -227,10 +227,10 @@ export default function AdminFeaturedPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={handleSave} className="rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">
+                    <button type="button" onClick={handleSave} className="btn-hover rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">
                       {isFr ? "Enregistrer" : "Save"}
                     </button>
-                    <button type="button" onClick={cancelEdit} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
+                    <button type="button" onClick={cancelEdit} className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
                       {isFr ? "Annuler" : "Cancel"}
                     </button>
                   </div>
@@ -247,10 +247,10 @@ export default function AdminFeaturedPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => { setEditingId(slide.id); setForm({ image_url: slide.image_url, link_url: slide.link_url || "" }); setError(null); }} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
+                    <button type="button" onClick={() => { setEditingId(slide.id); setForm({ image_url: slide.image_url, link_url: slide.link_url || "" }); setError(null); }} className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
                       {isFr ? "Modifier" : "Edit"}
                     </button>
-                    <button type="button" onClick={() => handleDelete(slide.id)} className="rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">
+                    <button type="button" onClick={() => handleDelete(slide.id)} className="btn-hover rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">
                       {isFr ? "Supprimer" : "Delete"}
                     </button>
                   </div>

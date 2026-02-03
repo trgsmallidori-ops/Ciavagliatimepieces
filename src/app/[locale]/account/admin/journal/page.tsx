@@ -184,7 +184,7 @@ export default function AdminJournalPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={handleAddJournal} className="rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white">
+              <button type="button" onClick={handleAddJournal} className="btn-hover rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white">
                 {isFr ? "Créer" : "Create"}
               </button>
               <button type="button" onClick={() => setShowAddJournal(false)} className="rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
@@ -221,7 +221,7 @@ export default function AdminJournalPage() {
                     </select>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={handleSaveJournal} className="rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">
+                    <button type="button" onClick={handleSaveJournal} className="btn-hover rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">
                       {isFr ? "Enregistrer" : "Save"}
                     </button>
                     <button type="button" onClick={cancelEditJournal} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
@@ -242,7 +242,7 @@ export default function AdminJournalPage() {
                     <button type="button" onClick={() => startEditJournal(post)} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
                       {isFr ? "Modifier" : "Edit"}
                     </button>
-                    <button type="button" onClick={() => handleDeleteJournal(post.id)} className="rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">
+                    <button type="button" onClick={() => handleDeleteJournal(post.id)} className="btn-hover rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">
                       {isFr ? "Supprimer" : "Delete"}
                     </button>
                   </div>

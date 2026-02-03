@@ -25,13 +25,13 @@ export default function GlobalError({
             <button
               type="button"
               onClick={reset}
-              className="rounded-full border-2 border-red-300 bg-white px-6 py-3 text-sm font-medium text-red-800 transition hover:bg-red-100"
+              className="btn-hover rounded-full border-2 border-red-300 bg-white px-6 py-3 text-sm font-medium text-red-800 transition hover:bg-red-100"
             >
               Try again
             </button>
             <a
               href="/"
-              className="rounded-full bg-red-800 px-6 py-3 text-sm font-medium text-white transition hover:bg-red-900"
+              className="btn-hover rounded-full bg-red-800 px-6 py-3 text-sm font-medium text-white transition hover:bg-red-900"
             >
               Back to home
             </a>

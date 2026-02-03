@@ -111,8 +111,40 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const orderType = session.metadata?.type;
+      if (orderType === "cart" && userId) {
+        const cartProductQuantitiesRaw = session.metadata?.cart_product_quantities;
+        if (typeof cartProductQuantitiesRaw === "string") {
+          try {
+            const cartProductQuantities = JSON.parse(cartProductQuantitiesRaw) as Array<{ product_id: string; quantity: number }>;
+            for (const { product_id, quantity } of cartProductQuantities) {
+              const qty = Math.max(0, Number(quantity) || 1);
+              if (!product_id || qty < 1) continue;
+              const { data: product } = await supabase
+                .from("products")
+                .select("stock")
+                .eq("id", product_id)
+                .single();
+              const currentStock = product?.stock ?? 0;
+              if (currentStock > 0) {
+                await supabase
+                  .from("products")
+                  .update({
+                    stock: Math.max(0, currentStock - qty),
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", product_id);
+              }
+            }
+          } catch (e) {
+            console.error("Webhook: failed to parse cart_product_quantities", e);
+          }
+        }
+        await supabase.from("cart_items").delete().eq("user_id", userId);
+      }
+
       const { error: insertOrderError } = await supabase.from("orders").insert({
-        configuration_id: configurationId,
+        configuration_id: orderType === "cart" ? null : configurationId || null,
         user_id: userId,
         total,
         status: "paid",

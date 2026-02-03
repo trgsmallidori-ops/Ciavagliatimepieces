@@ -298,7 +298,7 @@ export default function AdminConfiguratorPage() {
           <button
             type="button"
             onClick={() => { setShowAddStep(true); setStepForm({ label_en: "", label_fr: "", sort_order: steps.length }); setError(null); }}
-            className="rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white"
+            className="btn-hover rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white"
           >
             {isFr ? "Ajouter une étape" : "Add step"}
           </button>
@@ -320,8 +320,8 @@ export default function AdminConfiguratorPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={handleAddStep} className="rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Créer" : "Create"}</button>
-              <button type="button" onClick={() => { setShowAddStep(false); }} className="rounded-full border border-foreground/20 px-5 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
+              <button type="button" onClick={handleAddStep} className="btn-hover rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Créer" : "Create"}</button>
+              <button type="button" onClick={() => { setShowAddStep(false); }} className="btn-hover rounded-full border border-foreground/20 px-5 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
             </div>
           </div>
         </ScrollReveal>
@@ -344,7 +344,7 @@ export default function AdminConfiguratorPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={handleSaveStep} className="rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Enregistrer" : "Save"}</button>
+                    <button type="button" onClick={handleSaveStep} className="btn-hover rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Enregistrer" : "Save"}</button>
                     <button type="button" onClick={() => setEditingStepId(null)} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
                   </div>
                 </div>
@@ -356,7 +356,7 @@ export default function AdminConfiguratorPage() {
                   </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => { setEditingStepId(step.id); setStepForm({ label_en: step.label_en, label_fr: step.label_fr, sort_order: step.sort_order }); }} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Modifier" : "Edit"}</button>
-                    <button type="button" onClick={() => handleDeleteStep(step.id)} className="rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">{isFr ? "Supprimer" : "Delete"}</button>
+                    <button type="button" onClick={() => handleDeleteStep(step.id)} className="btn-hover rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">{isFr ? "Supprimer" : "Delete"}</button>
                   </div>
                 </div>
               )}
@@ -372,7 +372,7 @@ export default function AdminConfiguratorPage() {
           <button
             type="button"
             onClick={() => { setShowAddAddon(true); setAddonForm({ step_id: steps[0]?.id ?? "", label_en: "", label_fr: "", price: 0 }); setError(null); }}
-            className="rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white"
+            className="btn-hover rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white"
           >
             {isFr ? "Ajouter un add-on" : "Add add-on"}
           </button>
@@ -409,8 +409,8 @@ export default function AdminConfiguratorPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={handleAddAddon} className="rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Créer puis assigner options" : "Create then assign options"}</button>
-              <button type="button" onClick={() => setShowAddAddon(false)} className="rounded-full border border-foreground/20 px-5 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
+              <button type="button" onClick={handleAddAddon} className="btn-hover rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Créer puis assigner options" : "Create then assign options"}</button>
+              <button type="button" onClick={() => setShowAddAddon(false)} className="btn-hover rounded-full border border-foreground/20 px-5 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
             </div>
           </div>
         </ScrollReveal>
@@ -455,7 +455,7 @@ export default function AdminConfiguratorPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={handleSaveAddon} className="rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Enregistrer" : "Save"}</button>
+                      <button type="button" onClick={handleSaveAddon} className="btn-hover rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Enregistrer" : "Save"}</button>
                       <button type="button" onClick={() => { setEditingAddonId(null); }} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
                     </div>
                   </div>
@@ -467,7 +467,7 @@ export default function AdminConfiguratorPage() {
                     </div>
                     <div className="flex gap-2">
                       <button type="button" onClick={() => openEditAddon(addon)} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase">{isFr ? "Modifier / options" : "Edit / options"}</button>
-                      <button type="button" onClick={() => handleDeleteAddon(addon.id)} className="rounded-full border border-red-200 px-4 py-2 text-xs text-red-600">{isFr ? "Supprimer" : "Delete"}</button>
+                      <button type="button" onClick={() => handleDeleteAddon(addon.id)} className="btn-hover rounded-full border border-red-200 px-4 py-2 text-xs text-red-600">{isFr ? "Supprimer" : "Delete"}</button>
                     </div>
                   </div>
                 )}
@@ -484,7 +484,7 @@ export default function AdminConfiguratorPage() {
           <button
             type="button"
             onClick={() => { setShowAddOption(true); setOptionStepId(steps[0]?.id ?? null); setOptionForm({ step_id: steps[0]?.id ?? "", parent_option_id: null, label_en: "", label_fr: "", letter: "A", price: 0, image_url: "", preview_image_url: "" }); setError(null); }}
-            className="rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white"
+            className="btn-hover rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white"
           >
             {isFr ? "Ajouter une option" : "Add option"}
           </button>
@@ -554,8 +554,8 @@ export default function AdminConfiguratorPage() {
             </div>
             {imageError && <p className="mt-2 text-sm text-red-600">{imageError}</p>}
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={handleAddOption} className="rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Créer" : "Create"}</button>
-              <button type="button" onClick={() => { setShowAddOption(false); }} className="rounded-full border border-foreground/20 px-5 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
+              <button type="button" onClick={handleAddOption} className="btn-hover rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Créer" : "Create"}</button>
+              <button type="button" onClick={() => { setShowAddOption(false); }} className="btn-hover rounded-full border border-foreground/20 px-5 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
             </div>
           </div>
         </ScrollReveal>
@@ -582,7 +582,7 @@ export default function AdminConfiguratorPage() {
                       </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={() => { setEditingOptionId(opt.id); setOptionForm({ step_id: opt.step_id, parent_option_id: opt.parent_option_id, label_en: opt.label_en, label_fr: opt.label_fr, letter: opt.letter, price: opt.price, image_url: opt.image_url ?? "", preview_image_url: opt.preview_image_url ?? "" }); setShowAddOption(false); }} className="rounded-full border border-foreground/20 px-3 py-1.5 text-xs uppercase">{isFr ? "Modifier" : "Edit"}</button>
-                        <button type="button" onClick={() => handleDeleteOption(opt.id)} className="rounded-full border border-red-200 px-3 py-1.5 text-xs text-red-600">{isFr ? "Supprimer" : "Delete"}</button>
+                        <button type="button" onClick={() => handleDeleteOption(opt.id)} className="btn-hover rounded-full border border-red-200 px-3 py-1.5 text-xs text-red-600">{isFr ? "Supprimer" : "Delete"}</button>
                       </div>
                     </div>
                   ))}
@@ -623,8 +623,8 @@ export default function AdminConfiguratorPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={handleSaveOption} className="rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Enregistrer" : "Save"}</button>
-              <button type="button" onClick={() => setEditingOptionId(null)} className="rounded-full border border-foreground/20 px-5 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
+              <button type="button" onClick={handleSaveOption} className="btn-hover rounded-full bg-foreground px-5 py-2 text-xs uppercase tracking-[0.2em] text-white">{isFr ? "Enregistrer" : "Save"}</button>
+              <button type="button" onClick={() => setEditingOptionId(null)} className="btn-hover rounded-full border border-foreground/20 px-5 py-2 text-xs uppercase tracking-[0.2em]">{isFr ? "Annuler" : "Cancel"}</button>
             </div>
           </div>
         </ScrollReveal>

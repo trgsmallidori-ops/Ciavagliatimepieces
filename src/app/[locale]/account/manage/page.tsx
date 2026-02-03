@@ -166,7 +166,7 @@ export default function ManageAccountPage() {
                       <button
                         type="button"
                         onClick={startEditing}
-                        className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
+                        className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
                       >
                         {isFr ? "Modifier" : "Edit"}
                       </button>
@@ -262,7 +262,7 @@ export default function ManageAccountPage() {
                           type="button"
                           onClick={cancelEditing}
                           disabled={saving}
-                          className="rounded-full border border-foreground/20 px-6 py-3 text-xs uppercase tracking-[0.3em] text-foreground/80 transition hover:border-foreground hover:text-foreground disabled:opacity-70"
+                          className="btn-hover rounded-full border border-foreground/20 px-6 py-3 text-xs uppercase tracking-[0.3em] text-foreground/80 transition hover:border-foreground hover:text-foreground disabled:opacity-70"
                         >
                           {isFr ? "Annuler" : "Cancel"}
                         </button>

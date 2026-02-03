@@ -73,7 +73,7 @@ export default function ContactForm({ labels }: { labels: ContactLabels }) {
         </div>
         <button
           type="submit"
-          className="w-full rounded-full border border-foreground bg-foreground px-6 py-3 text-sm uppercase tracking-[0.2em] text-background transition hover:bg-foreground/90"
+          className="btn-hover w-full rounded-full border border-foreground bg-foreground px-6 py-3 text-sm uppercase tracking-[0.2em] text-background transition hover:bg-foreground/90"
         >
           {labels.send}
         </button>

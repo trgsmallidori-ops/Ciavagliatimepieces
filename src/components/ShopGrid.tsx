@@ -35,14 +35,23 @@ export default function ShopGrid({ watches, locale }: { watches: Watch[]; locale
         return;
       }
 
+      const { data: existing } = await supabase
+        .from("cart_items")
+        .select("quantity")
+        .eq("user_id", user.id)
+        .eq("product_id", watch.id)
+        .maybeSingle();
+      const newQty = (existing?.quantity ?? 0) + 1;
+
       await supabase.from("cart_items").upsert({
         user_id: user.id,
         product_id: watch.id,
-        quantity: 1,
+        quantity: newQty,
         price: watch.price,
         title: watch.name,
         image_url: watch.image,
       });
+      window.dispatchEvent(new CustomEvent("cart-updated"));
     } finally {
       setLoadingId(null);
     }
@@ -68,10 +77,18 @@ export default function ShopGrid({ watches, locale }: { watches: Watch[]; locale
         }),
       });
 
-      const data = await response.json();
-      if (data?.url) {
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data?.url) {
         window.location.href = data.url;
+        return;
       }
+      const message =
+        typeof data?.error === "string"
+          ? data.error
+          : response.status === 401
+            ? isFr ? "Veuillez vous connecter." : "Please sign in."
+            : isFr ? "Impossible de lancer la commande. Réessayez." : "Could not start checkout. Please try again.";
+      alert(message);
     } finally {
       setLoadingId(null);
     }
@@ -100,15 +117,17 @@ export default function ShopGrid({ watches, locale }: { watches: Watch[]; locale
               ) : (
                 <>
                   <button
+                    type="button"
                     onClick={() => handleAddToCart(watch)}
-                    className="rounded-full border border-foreground/30 px-4 py-2 text-xs uppercase tracking-[0.3em] text-foreground/70"
+                    className="btn-hover rounded-full border border-foreground/30 px-4 py-2 text-xs uppercase tracking-[0.3em] text-foreground/70 disabled:pointer-events-none disabled:opacity-60"
                     disabled={loadingId === watch.id}
                   >
                     {isFr ? "Ajouter" : "Add to cart"}
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleBuyNow(watch)}
-                    className="rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.3em] text-white"
+                    className="btn-hover rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.3em] text-white disabled:pointer-events-none disabled:opacity-60"
                     disabled={loadingId === watch.id}
                   >
                     {isFr ? "Acheter" : "Buy now"}

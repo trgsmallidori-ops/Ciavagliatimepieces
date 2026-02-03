@@ -192,10 +192,10 @@ export default function AdminCategoriesPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={handleAddCategory} className="rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white">
+              <button type="button" onClick={handleAddCategory} className="btn-hover rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white">
                 {isFr ? "Créer" : "Create"}
               </button>
-              <button type="button" onClick={() => { setShowAddCategory(false); setCategoryForm({ slug: "", label_en: "", label_fr: "" }); }} className="rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
+              <button type="button" onClick={() => { setShowAddCategory(false); setCategoryForm({ slug: "", label_en: "", label_fr: "" }); }} className="btn-hover rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
                 {isFr ? "Annuler" : "Cancel"}
               </button>
             </div>
@@ -224,10 +224,10 @@ export default function AdminCategoriesPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={handleSaveCategory} className="rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">
+                    <button type="button" onClick={handleSaveCategory} className="btn-hover rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">
                       {isFr ? "Enregistrer" : "Save"}
                     </button>
-                    <button type="button" onClick={cancelEditCategory} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
+                    <button type="button" onClick={cancelEditCategory} className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
                       {isFr ? "Annuler" : "Cancel"}
                     </button>
                   </div>
@@ -258,10 +258,10 @@ export default function AdminCategoriesPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <button type="button" onClick={() => startEditCategory(cat)} className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
+                    <button type="button" onClick={() => startEditCategory(cat)} className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
                       {isFr ? "Modifier" : "Edit"}
                     </button>
-                    <button type="button" onClick={() => handleDeleteCategory(cat.id)} className="rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">
+                    <button type="button" onClick={() => handleDeleteCategory(cat.id)} className="btn-hover rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">
                       {isFr ? "Supprimer" : "Delete"}
                     </button>
                   </div>
