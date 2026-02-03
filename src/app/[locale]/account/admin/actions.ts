@@ -774,10 +774,29 @@ export type OrderRow = {
 export async function getAdminOrders(): Promise<OrderRow[]> {
   await requireAdmin();
   const supabase = createServerClient();
+  const fullSelect = "id, configuration_id, user_id, total, status, summary, stripe_session_id, customer_email, shipping_name, shipping_line1, shipping_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country, created_at";
   const { data, error } = await supabase
     .from("orders")
-    .select("id, configuration_id, user_id, total, status, summary, stripe_session_id, customer_email, shipping_name, shipping_line1, shipping_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country, created_at")
+    .select(fullSelect)
     .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data ?? [];
+  if (!error) return (data ?? []) as OrderRow[];
+  if (error.code === "PGRST116" || error.message?.includes("column") || error.message?.includes("does not exist")) {
+    const { data: fallback, error: fallbackError } = await supabase
+      .from("orders")
+      .select("id, configuration_id, user_id, total, status, summary, stripe_session_id, created_at")
+      .order("created_at", { ascending: false });
+    if (fallbackError) return [];
+    return (fallback ?? []).map((row) => ({
+      ...row,
+      customer_email: null,
+      shipping_name: null,
+      shipping_line1: null,
+      shipping_line2: null,
+      shipping_city: null,
+      shipping_state: null,
+      shipping_postal_code: null,
+      shipping_country: null,
+    })) as OrderRow[];
+  }
+  return [];
 }
