@@ -14,13 +14,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing or invalid body" }, { status: 400 });
   }
 
-  const { locale, type, userId } = payload as {
+  type CheckoutPayload = {
     locale?: string;
     type?: string;
     userId?: string | null;
     configuration?: Record<string, string | number>;
     productId?: string;
   };
+  const body = payload as CheckoutPayload;
+  const { locale, type, userId } = body;
 
   if (!locale || typeof locale !== "string") {
     return NextResponse.json({ error: "Missing locale" }, { status: 400 });
@@ -28,10 +30,10 @@ export async function POST(request: NextRequest) {
   if (type !== "custom" && type !== "built") {
     return NextResponse.json({ error: "Invalid checkout type" }, { status: 400 });
   }
-  if (type === "custom" && !(payload as Record<string, unknown>).configuration) {
+  if (type === "custom" && !body.configuration) {
     return NextResponse.json({ error: "Missing configuration for custom build" }, { status: 400 });
   }
-  if (type === "built" && !(payload as Record<string, unknown>).productId) {
+  if (type === "built" && !body.productId) {
     return NextResponse.json({ error: "Missing product" }, { status: 400 });
   }
 
@@ -42,8 +44,8 @@ export async function POST(request: NextRequest) {
     let amount = 0;
     let configurationId: string | null = null;
 
-    if (type === "custom" && payload.configuration) {
-    const cfg = payload.configuration as Record<string, unknown>;
+    if (type === "custom" && body.configuration) {
+    const cfg = body.configuration as Record<string, unknown>;
     amount = Number(cfg.price ?? 0);
     summary = "Custom build";
 
@@ -51,7 +53,7 @@ export async function POST(request: NextRequest) {
       .from("configurations")
       .insert({
         type: "custom",
-        options: payload.configuration,
+        options: body.configuration,
         status: "pending",
         price: amount,
         user_id: userId ?? null,
@@ -66,11 +68,11 @@ export async function POST(request: NextRequest) {
     configurationId = data.id;
     }
 
-    if (type === "built" && payload.productId) {
+    if (type === "built" && body.productId) {
     const { data: product, error: productError } = await supabase
       .from("products")
       .select("id, name, price, stock")
-      .eq("id", payload.productId)
+      .eq("id", body.productId)
       .eq("active", true)
       .single();
 
