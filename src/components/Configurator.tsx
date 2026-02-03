@@ -249,7 +249,7 @@ export default function Configurator({ locale }: { locale: string }) {
         </button>
       </div>
 
-      <div className="border-b border-foreground/10 bg-white/40 px-6 py-4">
+      <div className="border-b-2 border-foreground/20 bg-white px-6 py-4 shadow-sm">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2 md:gap-4">
           {steps.map((s, i) => {
             const isCompleted = stepIndex > i || (stepIndex === i && (i === 0 ? selectedIds[0] : true));
@@ -258,8 +258,12 @@ export default function Configurator({ locale }: { locale: string }) {
             return (
               <div key={s.id} className="flex flex-col items-center gap-1">
                 <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
-                    isCompleted ? "bg-accent text-white" : isActive ? "bg-accent text-white" : "bg-surface-strong text-foreground/50"
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                    isCompleted
+                      ? "border-accent bg-accent text-white"
+                      : isActive
+                        ? "border-accent bg-accent text-white"
+                        : "border-foreground/35 bg-foreground/10 text-foreground/80"
                   }`}
                 >
                   {isCompleted && stepIndex > i ? (
@@ -267,10 +271,14 @@ export default function Configurator({ locale }: { locale: string }) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   ) : (
-                    <span className="text-xs font-medium">{i + 1}</span>
+                    <span className="text-xs font-semibold">{i + 1}</span>
                   )}
                 </div>
-                <span className={`text-xs uppercase tracking-wider ${isActive ? "text-accent" : "text-foreground/60"}`}>
+                <span
+                  className={`text-xs font-medium uppercase tracking-wider ${
+                    isActive ? "text-accent" : isCompleted && stepIndex > i ? "text-foreground/70" : "text-foreground/80"
+                  }`}
+                >
                   {label}
                 </span>
                 {isActive && <div className="h-0.5 w-full bg-accent" />}
