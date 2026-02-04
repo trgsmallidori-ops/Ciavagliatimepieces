@@ -10,11 +10,16 @@
   --surface-strong: #e9e1d6;
   --shadow: 0 24px 80px rgba(15, 20, 23, 0.12);
   --radius-xl: 28px;
+  /* Logo-inspired: green (logo background) + gold (accent) */
+  --logo-green: #1a4d2e;
+  --logo-gold: #c9a227;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-logo-green: var(--logo-green);
+  --color-logo-gold: var(--logo-gold);
   --font-sans: var(--font-body);
   --font-display: var(--font-display);
 }
@@ -82,5 +87,19 @@
 
   .parallax {
     will-change: transform;
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .toast-in {
+    animation: toast-in 0.3s ease;
   }
 }

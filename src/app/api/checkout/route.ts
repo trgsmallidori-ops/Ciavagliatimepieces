@@ -251,6 +251,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Nothing to checkout" }, { status: 400 });
     }
 
+    // Stripe minimum is $0.50 USD per transaction
+    const STRIPE_MIN_CENTS = 50;
+    const totalCents = lineItems.reduce((sum, item) => sum + item.quantity * item.price_data.unit_amount, 0);
+    if (totalCents < STRIPE_MIN_CENTS) {
+      return NextResponse.json(
+        {
+          error: `Minimum order amount is $0.50 USD. Your total is $${(totalCents / 100).toFixed(2)}. Please add more items or use a product with a higher price.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const siteUrl = getSiteUrl();
     const stripe = getStripe();
     const metadata: Record<string, string> = {
@@ -289,6 +301,12 @@ export async function POST(request: NextRequest) {
     console.error("Checkout error:", error);
     if (message.includes("stock") || message.includes("product")) {
       return NextResponse.json({ error: "Product unavailable. Please refresh and try again." }, { status: 400 });
+    }
+    if (message.toLowerCase().includes("amount") || message.toLowerCase().includes("minimum")) {
+      return NextResponse.json(
+        { error: "The order total is below Stripe's minimum ($0.50 USD). Please add more items or choose a higher-priced product." },
+        { status: 400 }
+      );
     }
     return NextResponse.json(
       { error: "Failed to create checkout session. Please try again." },

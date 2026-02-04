@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import CartToast from "@/components/CartToast";
 import Footer from "@/components/Footer";
 import NavBar from "@/components/NavBar";
 import { isAdmin } from "@/lib/admin";
@@ -40,6 +41,7 @@ export default async function LocaleLayout({
       <NavBar locale={locale} labels={dictionary.nav} isAdmin={isAdminUser} watchCategories={watchCategories} />
       <main className="pt-28">{children}</main>
       <Footer locale={locale} />
+      <CartToast locale={locale} />
     </div>
   );
 }

@@ -52,6 +52,7 @@ export default function ShopGrid({ watches, locale }: { watches: Watch[]; locale
         image_url: watch.image,
       });
       window.dispatchEvent(new CustomEvent("cart-updated"));
+      window.dispatchEvent(new CustomEvent("cart-item-added"));
     } finally {
       setLoadingId(null);
     }
