@@ -295,7 +295,7 @@ export default function AdminFeaturedPage() {
               <button type="button" onClick={handleAdd} className="btn-hover rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white">
                 {isFr ? "Créer" : "Create"}
               </button>
-              <button type="button" onClick={() => { setShowAdd(false); setForm({ image_url: "", link_url: "" }); }} className="btn-hover rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
+              <button type="button" onClick={() => { setShowAdd(false); setForm({ image_url: "", image_url_secondary: "", title: "", subtitle: "", description: "", link_url: "" }); }} className="btn-hover rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
                 {isFr ? "Annuler" : "Cancel"}
               </button>
             </div>
