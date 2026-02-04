@@ -9,8 +9,8 @@ const navItems = [
   { href: "orders", labelEn: "Orders", labelFr: "Commandes" },
   { href: "products", labelEn: "Products", labelFr: "Produits" },
   { href: "categories", labelEn: "Categories", labelFr: "Catégories" },
-  { href: "featured", labelEn: "Featured", labelFr: "À la une" },
   { href: "configurator", labelEn: "Configurator", labelFr: "Configurateur" },
+  { href: "featured", labelEn: "Featured", labelFr: "À la une" },
   { href: "journal", labelEn: "Journal", labelFr: "Journal" },
 ] as const;
 

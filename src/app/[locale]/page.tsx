@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import Parallax from "@/components/Parallax";
 import ScrollReveal from "@/components/ScrollReveal";
-import HeroCarousel from "@/components/HeroCarousel";
+import FeaturedScroll from "@/components/FeaturedScroll";
+import StorySection from "@/components/StorySection";
 import { getDictionary, Locale } from "@/lib/i18n";
 import { getWatchCategories } from "@/lib/watch-categories";
 import { getFeaturedSlides } from "@/app/[locale]/account/admin/actions";
@@ -29,29 +30,27 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
 
   return (
     <div className="space-y-0">
-      {/* Full-screen hero carousel – auto-rotate, manual flip, purchase button */}
-      <HeroCarousel
+      <FeaturedScroll
         slides={featuredSlides}
         locale={locale}
-        title={hero.title}
-        subtitle={hero.subtitle}
-        trustLine={home.trustLine}
-        ctaPrimary={hero.ctaPrimary}
-        ctaSecondary={hero.ctaSecondary}
         purchaseLabel={hero.purchaseLabel}
+        jumpLabel={home.jumpToWatches}
         fallbackImage={heroFallbackImage}
       />
 
-      {/* Watch collections – image section for each type */}
-      <section className="border-t border-foreground/10 bg-white/40 px-6 py-14">
-        <div className="mx-auto max-w-6xl">
+      <StorySection
+        id="watch-collections"
+        minHeight="100vh"
+        className="border-t border-foreground/10 bg-[var(--background)]"
+        contentCenter={false}
+      >
+        <div className="mx-auto w-full max-w-6xl px-6 py-20">
           <ScrollReveal>
-            <h2 className="text-center text-2xl uppercase tracking-[0.2em] text-foreground/80 md:text-3xl">
+            <h2 className="text-center text-2xl uppercase tracking-[0.25em] text-foreground/80 md:text-3xl">
               {home.selectStyle}
             </h2>
           </ScrollReveal>
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {/* Configurator tile */}
+          <div className="mt-14 grid gap-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             <ScrollReveal key="customizer">
               <Link
                 href={`/${locale}/configurator`}
@@ -64,7 +63,6 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
                 <p className="mt-2 text-sm text-foreground/70">{home.buildYourOwnSub}</p>
               </Link>
             </ScrollReveal>
-            {/* Shop tile */}
             <ScrollReveal key="shop">
               <Link
                 href={`/${locale}/shop`}
@@ -103,13 +101,16 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
             })}
           </div>
         </div>
-      </section>
+      </StorySection>
 
-      {/* Best of the collection – product-style grid */}
-      <section className="px-6 py-14">
-        <div className="mx-auto max-w-6xl">
-          <ScrollReveal className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <h2 className="text-2xl uppercase tracking-[0.2em] text-foreground/80 md:text-3xl">
+      <StorySection
+        minHeight="100vh"
+        className="bg-white/50"
+        contentCenter={false}
+      >
+        <div className="mx-auto w-full max-w-6xl px-6 py-20">
+          <ScrollReveal className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <h2 className="text-2xl uppercase tracking-[0.25em] text-foreground/80 md:text-3xl">
               {home.bestOfAtelier}
             </h2>
             <Link
@@ -119,12 +120,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
               {home.seeMore} →
             </Link>
           </ScrollReveal>
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {builtWatches.map((watch) => (
               <ScrollReveal key={watch.id}>
                 <Link
                   href={`/${locale}/shop`}
-                  className="group block rounded-[28px] border border-white/70 bg-white/80 overflow-hidden shadow-[0_24px_90px_rgba(15,20,23,0.1)] transition hover:shadow-[0_28px_100px_rgba(15,20,23,0.14)]"
+                  className="group block overflow-hidden rounded-[28px] border border-white/70 bg-white/80 shadow-[0_24px_90px_rgba(15,20,23,0.1)] transition hover:shadow-[0_28px_100px_rgba(15,20,23,0.14)]"
                 >
                   <Image
                     src={watch.image}
@@ -145,87 +146,86 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
             ))}
           </div>
         </div>
-      </section>
+      </StorySection>
 
-      {/* Build your own – full-width CTA block (Chrono-style) */}
-      <section className="border-y border-foreground/10 bg-foreground px-6 py-14 text-white">
-        <div className="mx-auto max-w-4xl text-center">
-          <ScrollReveal>
-            <h2 className="text-3xl md:text-4xl">{home.buildYourOwn}</h2>
-            <p className="mt-4 text-white/80">{home.buildYourOwnSub}</p>
-            <Link
-              href={`/${locale}/configurator`}
-              className="mt-8 inline-block rounded-full border border-white/50 bg-white px-8 py-3 text-sm uppercase tracking-[0.3em] text-foreground transition hover:bg-white/90"
-            >
-              {hero.ctaPrimary}
-            </Link>
-          </ScrollReveal>
-        </div>
-      </section>
+      <StorySection
+        minHeight="100vh"
+        className="bg-foreground text-white"
+        contentCenter={true}
+      >
+        <ScrollReveal>
+          <h2 className="text-3xl font-medium md:text-4xl lg:text-5xl">{home.buildYourOwn}</h2>
+          <p className="mx-auto mt-6 max-w-xl text-lg text-white/85">{home.buildYourOwnSub}</p>
+          <Link
+            href={`/${locale}/configurator`}
+            className="btn-hover mt-10 inline-block rounded-full border border-white/50 bg-white px-10 py-4 text-sm uppercase tracking-[0.35em] text-foreground transition hover:bg-white/95"
+          >
+            {hero.ctaPrimary}
+          </Link>
+        </ScrollReveal>
+      </StorySection>
 
-      {/* The process – six steps + workshop image */}
-      <section className="px-6 py-14">
-        <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-[1fr_1fr] md:items-center">
+      <StorySection
+        minHeight="100vh"
+        className="bg-[var(--background)]"
+        contentCenter={false}
+      >
+        <div className="mx-auto grid w-full max-w-6xl gap-12 px-6 py-20 md:grid-cols-[1fr_1fr] md:items-center">
           <ScrollReveal>
-            <div className="rounded-[32px] border border-white/60 bg-white/70 p-10">
-              <p className="text-xs uppercase tracking-[0.4em] text-foreground/50">
-                {home.theProcess}
-              </p>
-              <h2 className="mt-6 text-3xl">{home.theProcessSub}</h2>
-              <p className="mt-4 text-foreground/70">
-                {isFr
-                  ? "Le configurateur vous guide pour creer la piece parfaite, validee avant expedition."
-                  : "Our configurator lets you sculpt the dial, case, movement, and strap with live pricing. Each build is reviewed before it ships."}
-              </p>
-              <div className="mt-8 grid gap-4 text-sm uppercase tracking-[0.3em] text-foreground/60">
-                <span>01 · {isFr ? "Consultation" : "Consultation"}</span>
-                <span>02 · {isFr ? "Configuration" : "Configuration"}</span>
-                <span>03 · {isFr ? "Artisanat" : "Craftsmanship"}</span>
-                <span>04 · {isFr ? "Assemblage" : "Assembly"}</span>
-                <span>05 · {isFr ? "Tests" : "Testing"}</span>
-                <span>06 · {isFr ? "Livraison" : "Delivery"}</span>
-              </div>
+            <p className="text-xs uppercase tracking-[0.4em] text-foreground/50">
+              {home.theProcess}
+            </p>
+            <h2 className="mt-6 text-3xl font-medium md:text-4xl">{home.theProcessSub}</h2>
+            <p className="mt-6 text-foreground/75">
+              {isFr
+                ? "Le configurateur vous guide pour creer la piece parfaite, validee avant expedition."
+                : "Our configurator lets you sculpt the dial, case, movement, and strap with live pricing. Each build is reviewed before it ships."}
+            </p>
+            <div className="mt-10 grid gap-3 text-sm uppercase tracking-[0.25em] text-foreground/60">
+              <span>01 · {isFr ? "Consultation" : "Consultation"}</span>
+              <span>02 · {isFr ? "Configuration" : "Configuration"}</span>
+              <span>03 · {isFr ? "Artisanat" : "Craftsmanship"}</span>
+              <span>04 · {isFr ? "Assemblage" : "Assembly"}</span>
+              <span>05 · {isFr ? "Tests" : "Testing"}</span>
+              <span>06 · {isFr ? "Livraison" : "Delivery"}</span>
             </div>
           </ScrollReveal>
-          <Parallax>
+          <Parallax speed={0.12}>
             <Image
               src="/images/workshop.svg"
               alt="Ciavaglia workshop"
               width={520}
               height={640}
-              className="h-[480px] w-full rounded-[32px] object-cover shadow-[0_30px_120px_rgba(15,20,23,0.16)] md:h-[520px]"
+              className="h-[420px] w-full rounded-[28px] object-cover shadow-[0_30px_120px_rgba(15,20,23,0.16)] md:h-[520px]"
             />
           </Parallax>
         </div>
-      </section>
+      </StorySection>
 
-      {/* Final CTA – gradient card */}
-      <section className="px-6 pb-20">
-        <div className="mx-auto flex max-w-6xl flex-col gap-10 rounded-[36px] border border-white/60 bg-gradient-to-br from-[#f6efe6] via-[#f2e7d6] to-[#efe0cb] p-12 text-center shadow-[0_40px_120px_rgba(15,20,23,0.12)]">
-          <ScrollReveal>
-            <h2 className="text-3xl md:text-4xl">{home.finalCtaTitle}</h2>
-          </ScrollReveal>
-          <ScrollReveal>
-            <p className="text-foreground/70">{home.finalCtaSub}</p>
-          </ScrollReveal>
-          <ScrollReveal>
-            <div className="flex flex-wrap justify-center gap-4">
-              <Link
-                href={`/${locale}/configurator`}
-                className="rounded-full bg-foreground px-8 py-3 text-xs uppercase tracking-[0.3em] text-white transition hover:bg-foreground/90"
-              >
-                {home.startConfiguring}
-              </Link>
-              <Link
-                href={`/${locale}/blog`}
-                className="rounded-full border border-foreground/30 px-8 py-3 text-xs uppercase tracking-[0.3em] text-foreground/70 transition hover:border-foreground hover:text-foreground"
-              >
-                {home.readJournal}
-              </Link>
-            </div>
-          </ScrollReveal>
-        </div>
-      </section>
+      <StorySection
+        minHeight="90vh"
+        className="bg-gradient-to-br from-[#f6efe6] via-[#f2e7d6] to-[#efe0cb]"
+        contentCenter={true}
+      >
+        <ScrollReveal>
+          <h2 className="text-3xl font-medium md:text-4xl lg:text-5xl">{home.finalCtaTitle}</h2>
+          <p className="mx-auto mt-6 max-w-xl text-foreground/75">{home.finalCtaSub}</p>
+          <div className="mt-10 flex flex-wrap justify-center gap-4">
+            <Link
+              href={`/${locale}/configurator`}
+              className="btn-hover rounded-full bg-foreground px-10 py-4 text-xs uppercase tracking-[0.35em] text-white transition hover:bg-foreground/90"
+            >
+              {home.startConfiguring}
+            </Link>
+            <Link
+              href={`/${locale}/blog`}
+              className="btn-hover rounded-full border-2 border-foreground/30 px-10 py-4 text-xs uppercase tracking-[0.35em] text-foreground/80 transition hover:border-foreground hover:text-foreground"
+            >
+              {home.readJournal}
+            </Link>
+          </div>
+        </ScrollReveal>
+      </StorySection>
     </div>
   );
 }

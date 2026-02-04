@@ -126,7 +126,7 @@ export default function NavBar({
       className={`fixed left-0 right-0 top-0 z-50 w-full bg-white transition-transform duration-300 ${hidden ? "-translate-y-full" : "translate-y-0"}`}
     >
       {/* Full-width top bar: left nav | center logo | right account + locale + cart */}
-      <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-4">
+      <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-2.5">
         <nav className="hidden items-center justify-start gap-6 text-sm uppercase tracking-[0.2em] md:flex">
           {navItems.map((item) => (
             <Link
@@ -148,7 +148,7 @@ export default function NavBar({
             alt="Ciavaglia Timepieces"
             width={160}
             height={48}
-            className="h-10 w-auto object-contain"
+            className="h-8 w-auto object-contain"
             priority
           />
         </Link>
@@ -339,7 +339,7 @@ export default function NavBar({
         <>
           <div className="border-t border-foreground/10" />
           {/* Watch styles row – full width */}
-          <div className="border-t border-foreground/10 bg-white px-6 py-3">
+          <div className="border-t border-foreground/10 bg-white px-6 py-2">
             <div className="flex w-full flex-wrap items-center justify-center gap-4 md:gap-6">
               <Link
                 href={`/${activeLocale}/configurator`}

@@ -39,7 +39,7 @@ export default async function LocaleLayout({
   return (
     <div className="min-h-screen">
       <NavBar locale={locale} labels={dictionary.nav} isAdmin={isAdminUser} watchCategories={watchCategories} />
-      <main className="pt-28">{children}</main>
+      <main className="pt-28 md:pt-32">{children}</main>
       <Footer locale={locale} />
       <CartToast locale={locale} />
     </div>

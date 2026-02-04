@@ -366,7 +366,16 @@ export async function setProductImagesOrder(productId: string, imageIdsInOrder: 
 }
 
 // ——— Featured slides (landing hero carousel) ———
-export type FeaturedSlideRow = { id: string; image_url: string; link_url: string | null; sort_order: number };
+export type FeaturedSlideRow = {
+  id: string;
+  image_url: string;
+  image_url_secondary: string | null;
+  title: string | null;
+  subtitle: string | null;
+  description: string | null;
+  link_url: string | null;
+  sort_order: number;
+};
 
 /** Public: fetch slides for landing hero. */
 export async function getFeaturedSlides(): Promise<FeaturedSlideRow[]> {
@@ -374,7 +383,7 @@ export async function getFeaturedSlides(): Promise<FeaturedSlideRow[]> {
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from("featured_slides")
-      .select("id, image_url, link_url, sort_order")
+      .select("id, image_url, image_url_secondary, title, subtitle, description, link_url, sort_order")
       .order("sort_order", { ascending: true });
     if (error) return [];
     return data ?? [];
@@ -388,18 +397,30 @@ export async function getAdminFeaturedSlides(): Promise<FeaturedSlideRow[]> {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("featured_slides")
-    .select("id, image_url, link_url, sort_order")
+    .select("id, image_url, image_url_secondary, title, subtitle, description, link_url, sort_order")
     .order("sort_order", { ascending: true });
   if (error) throw error;
   return data ?? [];
 }
 
-export async function createFeaturedSlide(input: { image_url: string; link_url?: string | null; sort_order?: number }) {
+export async function createFeaturedSlide(input: {
+  image_url: string;
+  image_url_secondary?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  description?: string | null;
+  link_url?: string | null;
+  sort_order?: number;
+}) {
   await requireAdmin();
   if (!input.image_url?.trim()) throw new Error("Image URL required");
   const supabase = createServerClient();
   const { error } = await supabase.from("featured_slides").insert({
     image_url: input.image_url.trim(),
+    image_url_secondary: input.image_url_secondary?.trim() || null,
+    title: input.title?.trim() || null,
+    subtitle: input.subtitle?.trim() || null,
+    description: input.description?.trim() || null,
     link_url: input.link_url?.trim() || null,
     sort_order: input.sort_order ?? 0,
   });
@@ -408,12 +429,27 @@ export async function createFeaturedSlide(input: { image_url: string; link_url?:
   revalidatePath("/[locale]/account/admin", "page");
 }
 
-export async function updateFeaturedSlide(id: string, input: { image_url?: string; link_url?: string | null; sort_order?: number }) {
+export async function updateFeaturedSlide(
+  id: string,
+  input: {
+    image_url?: string;
+    image_url_secondary?: string | null;
+    title?: string | null;
+    subtitle?: string | null;
+    description?: string | null;
+    link_url?: string | null;
+    sort_order?: number;
+  }
+) {
   await requireAdmin();
   if (!id) throw new Error("Invalid id");
   const supabase = createServerClient();
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (input.image_url !== undefined) updates.image_url = input.image_url;
+  if (input.image_url_secondary !== undefined) updates.image_url_secondary = input.image_url_secondary || null;
+  if (input.title !== undefined) updates.title = input.title || null;
+  if (input.subtitle !== undefined) updates.subtitle = input.subtitle || null;
+  if (input.description !== undefined) updates.description = input.description || null;
   if (input.link_url !== undefined) updates.link_url = input.link_url || null;
   if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
   const { error } = await supabase.from("featured_slides").update(updates).eq("id", id);

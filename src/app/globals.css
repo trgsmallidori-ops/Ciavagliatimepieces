@@ -85,6 +85,17 @@
     transform: translateY(0);
   }
 
+  /* Rolex-style scroll story: section content fades and slides up when in view */
+  .story-content {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 1s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .story-content.story-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
   .parallax {
     will-change: transform;
   }

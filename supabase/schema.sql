@@ -101,10 +101,14 @@ create table if not exists journal_posts (
   updated_at timestamptz default now()
 );
 
--- Featured hero slides (landing page carousel). Admin sets image + purchase URL.
+-- Featured hero slides (landing page scroll). Admin sets images + copy + purchase URL.
 create table if not exists featured_slides (
   id uuid primary key default gen_random_uuid(),
   image_url text not null,
+  image_url_secondary text,
+  title text,
+  subtitle text,
+  description text,
   link_url text,
   sort_order int default 0,
   created_at timestamptz default now(),

@@ -21,7 +21,21 @@ export default function AdminFeaturedPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<{ image_url: string; link_url: string }>({ image_url: "", link_url: "" });
+  const [form, setForm] = useState<{
+    image_url: string;
+    image_url_secondary: string;
+    title: string;
+    subtitle: string;
+    description: string;
+    link_url: string;
+  }>({
+    image_url: "",
+    image_url_secondary: "",
+    title: "",
+    subtitle: "",
+    description: "",
+    link_url: "",
+  });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
@@ -40,14 +54,21 @@ export default function AdminFeaturedPage() {
 
   const cancelEdit = () => {
     setEditingId(null);
-    setForm({ image_url: "", link_url: "" });
+    setForm({ image_url: "", image_url_secondary: "", title: "", subtitle: "", description: "", link_url: "" });
   };
 
   const handleSave = async () => {
     if (!editingId) return;
     setError(null);
     try {
-      await updateFeaturedSlide(editingId, { image_url: form.image_url, link_url: form.link_url || null });
+      await updateFeaturedSlide(editingId, {
+        image_url: form.image_url,
+        image_url_secondary: form.image_url_secondary || null,
+        title: form.title || null,
+        subtitle: form.subtitle || null,
+        description: form.description || null,
+        link_url: form.link_url || null,
+      });
       setSlides(await getAdminFeaturedSlides());
       cancelEdit();
     } catch (e) {
@@ -59,10 +80,18 @@ export default function AdminFeaturedPage() {
     if (!form.image_url.trim()) return;
     setError(null);
     try {
-      await createFeaturedSlide({ image_url: form.image_url, link_url: form.link_url || null, sort_order: slides.length });
+      await createFeaturedSlide({
+        image_url: form.image_url,
+        image_url_secondary: form.image_url_secondary || null,
+        title: form.title || null,
+        subtitle: form.subtitle || null,
+        description: form.description || null,
+        link_url: form.link_url || null,
+        sort_order: slides.length,
+      });
       setSlides(await getAdminFeaturedSlides());
       setShowAdd(false);
-      setForm({ image_url: "", link_url: "" });
+      setForm({ image_url: "", image_url_secondary: "", title: "", subtitle: "", description: "", link_url: "" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add");
     }
@@ -106,15 +135,15 @@ export default function AdminFeaturedPage() {
             <h1 className="text-3xl font-semibold">{isFr ? "À la une" : "Featured"}</h1>
             <p className="mt-1 text-foreground/70">
               {isFr
-                ? "Images du hero sur la page d'accueil. Définissez l'image et l'URL d'achat pour chaque slide."
-                : "Landing page hero slides. Set the image and purchase URL for each slide."}
+                ? "Séquences de la page d'accueil. Définissez les images, le titre, la description et le lien d'achat."
+                : "Homepage feature sequences. Set images, title, description, and purchase URL."}
             </p>
           </div>
           <button
             type="button"
             onClick={() => {
               setShowAdd(true);
-              setForm({ image_url: "", link_url: "" });
+              setForm({ image_url: "", image_url_secondary: "", title: "", subtitle: "", description: "", link_url: "" });
               setError(null);
             }}
             className="rounded-full bg-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] text-white"
@@ -178,6 +207,77 @@ export default function AdminFeaturedPage() {
               </div>
               <div>
                 <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">
+                  {isFr ? "Image secondaire" : "Secondary image"}
+                </label>
+                <div className="mt-2 flex flex-wrap items-center gap-4">
+                  {form.image_url_secondary && (
+                    <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-foreground/5">
+                      <img src={form.image_url_secondary} alt="" className="h-full w-full object-cover" />
+                    </div>
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="block w-full max-w-sm text-sm text-foreground/70 file:mr-3 file:rounded-full file:border-0 file:bg-foreground/10 file:px-4 file:py-2 file:text-xs file:uppercase file:tracking-[0.2em] file:text-foreground"
+                      disabled={uploadingImage}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setImageError(null);
+                        setUploadingImage(true);
+                        try {
+                          const fd = new FormData();
+                          fd.append("image", file);
+                          const { url } = await uploadProductImage(fd);
+                          setForm((p) => ({ ...p, image_url_secondary: url }));
+                        } catch (err) {
+                          setImageError(err instanceof Error ? err.message : "Upload failed");
+                        } finally {
+                          setUploadingImage(false);
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                    <input
+                      value={form.image_url_secondary}
+                      onChange={(e) => setForm((p) => ({ ...p, image_url_secondary: e.target.value }))}
+                      placeholder={isFr ? "Ou coller une URL" : "Or paste image URL"}
+                      className="w-full rounded-full border border-foreground/20 bg-white px-4 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Titre" : "Title"}</label>
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                  placeholder={isFr ? "Nom de la montre" : "Watch title"}
+                  className="mt-2 w-full rounded-full border border-foreground/20 bg-white px-4 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Sous-titre" : "Subtitle"}</label>
+                <input
+                  value={form.subtitle}
+                  onChange={(e) => setForm((p) => ({ ...p, subtitle: e.target.value }))}
+                  placeholder={isFr ? "Ex. Série limitée" : "e.g. Limited series"}
+                  className="mt-2 w-full rounded-full border border-foreground/20 bg-white px-4 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Description" : "Description"}</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                  rows={3}
+                  placeholder={isFr ? "Texte descriptif" : "Descriptive text"}
+                  className="mt-2 w-full rounded-2xl border border-foreground/20 bg-white px-4 py-3 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">
                   {isFr ? "URL d'achat (bouton sur l'image)" : "Purchase URL (button on image)"}
                 </label>
                 <input
@@ -215,10 +315,31 @@ export default function AdminFeaturedPage() {
                         <img src={form.image_url} alt="" className="h-full w-full object-cover" />
                       </div>
                     )}
+                    {form.image_url_secondary && (
+                      <div className="h-32 w-48 shrink-0 overflow-hidden rounded-xl bg-foreground/5">
+                        <img src={form.image_url_secondary} alt="" className="h-full w-full object-cover" />
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1 space-y-3">
                       <div>
-                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Image URL</label>
+                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Primary image URL</label>
                         <input value={form.image_url} onChange={(e) => setForm((p) => ({ ...p, image_url: e.target.value }))} className="mt-1 w-full rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Secondary image URL</label>
+                        <input value={form.image_url_secondary} onChange={(e) => setForm((p) => ({ ...p, image_url_secondary: e.target.value }))} className="mt-1 w-full rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Title</label>
+                        <input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} className="mt-1 w-full rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Subtitle</label>
+                        <input value={form.subtitle} onChange={(e) => setForm((p) => ({ ...p, subtitle: e.target.value }))} className="mt-1 w-full rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Description</label>
+                        <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={3} className="mt-1 w-full rounded-2xl border border-foreground/20 bg-white px-3 py-2 text-sm" />
                       </div>
                       <div>
                         <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Purchase URL</label>
@@ -242,12 +363,12 @@ export default function AdminFeaturedPage() {
                       <img src={slide.image_url} alt="" className="h-full w-full object-cover" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">{slide.link_url || (isFr ? "— Pas de lien" : "— No link")}</p>
-                      <p className="text-xs text-foreground/50">{slide.image_url.slice(0, 50)}…</p>
+                      <p className="text-sm font-medium">{slide.title || (isFr ? "— Sans titre" : "— Untitled")}</p>
+                      <p className="text-xs text-foreground/50">{slide.link_url || (isFr ? "— Pas de lien" : "— No link")}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => { setEditingId(slide.id); setForm({ image_url: slide.image_url, link_url: slide.link_url || "" }); setError(null); }} className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
+                    <button type="button" onClick={() => { setEditingId(slide.id); setForm({ image_url: slide.image_url, image_url_secondary: slide.image_url_secondary ?? "", title: slide.title ?? "", subtitle: slide.subtitle ?? "", description: slide.description ?? "", link_url: slide.link_url || "" }); setError(null); }} className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
                       {isFr ? "Modifier" : "Edit"}
                     </button>
                     <button type="button" onClick={() => handleDelete(slide.id)} className="btn-hover rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">
