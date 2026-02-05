@@ -161,8 +161,8 @@ export async function POST(request: NextRequest) {
   if (!locale || typeof locale !== "string") {
     return NextResponse.json({ error: "Missing locale" }, { status: 400 });
   }
-  const validLocales = ["en", "fr"];
-  const localeSegment = validLocales.includes(locale) ? locale : "en";
+  const validLocales: ("en" | "fr")[] = ["en", "fr"];
+  const localeSegment: "en" | "fr" = validLocales.includes(locale as "en" | "fr") ? (locale as "en" | "fr") : "en";
   if (type !== "custom" && type !== "built" && type !== "cart") {
     return NextResponse.json({ error: "Invalid checkout type" }, { status: 400 });
   }
