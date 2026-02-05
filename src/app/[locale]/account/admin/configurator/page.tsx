@@ -9,6 +9,8 @@ import {
   getFunctionOptions,
   getFunctionSteps,
   setFunctionSteps,
+  createConfiguratorStep,
+  deleteConfiguratorStep,
   createConfiguratorOption,
   updateConfiguratorOption,
   deleteConfiguratorOption,
@@ -65,6 +67,16 @@ export default function AdminConfiguratorPage() {
 
   const [editingAddonId, setEditingAddonId] = useState<string | null>(null);
   const [addonForm, setAddonForm] = useState({ label_en: "", label_fr: "", price: 0 });
+
+  const [showCreateStep, setShowCreateStep] = useState(false);
+  const [stepForm, setStepForm] = useState({
+    label_en: "",
+    label_fr: "",
+    step_key: "",
+    optional: false,
+  });
+  const [createStepLoading, setCreateStepLoading] = useState(false);
+  const [deleteStepLoading, setDeleteStepLoading] = useState(false);
 
   const load = async () => {
     try {
@@ -147,6 +159,74 @@ export default function AdminConfiguratorPage() {
 
   const caseAddons = caseStep ? addons.filter((a) => a.step_id === caseStep.id) : [];
   const caseOptions = caseStep ? options.filter((o) => o.step_id === caseStep.id && (o.parent_option_id === null || o.parent_option_id === selectedFunctionId)) : [];
+
+  const nextSortOrder = useMemo(() => {
+    if (!steps.length) return 1;
+    const max = Math.max(...steps.map((s) => (s as ConfiguratorStepRow & { sort_order?: number }).sort_order ?? 0));
+    return max + 1;
+  }, [steps]);
+
+  const handleCreateStep = async () => {
+    const key = stepForm.step_key.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || null;
+    if (!stepForm.label_en.trim()) {
+      setError(isFr ? "Label (EN) requis." : "Label (EN) required.");
+      return;
+    }
+    if (!key) {
+      setError(isFr ? "Clé d’étape requise (ex. custom_rotor, extra_2)." : "Step key required (e.g. custom_rotor, extra_2).");
+      return;
+    }
+    setError(null);
+    setCreateStepLoading(true);
+    try {
+      await createConfiguratorStep({
+        label_en: stepForm.label_en.trim(),
+        label_fr: stepForm.label_fr.trim() || stepForm.label_en.trim(),
+        step_key: key,
+        optional: stepForm.optional,
+        sort_order: nextSortOrder,
+      });
+      await load();
+      setShowCreateStep(false);
+      setStepForm({ label_en: "", label_fr: "", step_key: "", optional: false });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create step");
+    } finally {
+      setCreateStepLoading(false);
+    }
+  };
+
+  const handleDeleteStep = async () => {
+    const row = currentStepRow as (ConfiguratorStepRow & { step_key?: string }) | undefined;
+    if (!row?.id || row.step_key === "function") return;
+    const msg = isFr
+      ? "Supprimer cette étape ? Les options et les liens aux types de montre seront supprimés."
+      : "Delete this step? Its options and links to watch types will be removed.";
+    if (!confirm(msg)) return;
+    setError(null);
+    setDeleteStepLoading(true);
+    try {
+      await deleteConfiguratorStep(row.id);
+      await load();
+      setCurrentStepKey("function");
+      setEditingOptionId(null);
+      setShowAddOption(false);
+      setEditingFunctionStepsFor(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete step");
+    } finally {
+      setDeleteStepLoading(false);
+    }
+  };
+
+  const suggestStepKeyFromLabel = (labelEn: string) => {
+    const slug = labelEn
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "");
+    if (slug) setStepForm((p) => ({ ...p, step_key: slug }));
+  };
 
   const openEditFunctionSteps = async (functionOptionId: string) => {
     setEditingFunctionStepsFor(functionOptionId);
@@ -331,6 +411,7 @@ export default function AdminConfiguratorPage() {
                   setShowAddOption(false);
                   setEditingFunctionStepsFor(null);
                   setEditingAddonId(null);
+                  setShowCreateStep(false);
                 }}
                 className="flex flex-col items-center gap-1"
               >
@@ -352,7 +433,103 @@ export default function AdminConfiguratorPage() {
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => {
+              setShowCreateStep((v) => !v);
+              setEditingOptionId(null);
+              setShowAddOption(false);
+              setEditingFunctionStepsFor(null);
+              setEditingAddonId(null);
+              if (!showCreateStep) setStepForm({ label_en: "", label_fr: "", step_key: "", optional: false });
+            }}
+            className="flex flex-col items-center gap-1"
+            aria-label={isFr ? "Ajouter une étape" : "Add step"}
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border-2 border-dashed border-foreground/30 bg-foreground/5 text-foreground/50 transition hover:border-[var(--accent)] hover:bg-[var(--accent)]/10 hover:text-[var(--accent)]">
+              <span className="text-lg font-medium">+</span>
+            </div>
+            <span className="text-xs font-medium uppercase tracking-wider text-foreground/50">
+              {isFr ? "Nouvelle étape" : "New step"}
+            </span>
+          </button>
         </div>
+        {showCreateStep && (
+          <div className="mx-auto mt-6 max-w-xl rounded-xl border-2 border-[var(--accent)]/30 bg-white/95 p-6">
+            <h3 className="text-lg font-semibold text-foreground">
+              {isFr ? "Créer une nouvelle étape" : "Create new step"}
+            </h3>
+            <p className="mt-1 text-sm text-foreground/60">
+              {isFr
+                ? "L’étape apparaîtra dans « Étapes » pour chaque type de montre. Donnez une clé unique (ex. custom_rotor)."
+                : "The step will appear in « Steps » for each watch type. Use a unique step key (e.g. custom_rotor)."}
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-medium uppercase tracking-wider text-foreground/60">Label (EN)</label>
+                <input
+                  value={stepForm.label_en}
+                  onChange={(e) => setStepForm((p) => ({ ...p, label_en: e.target.value }))}
+                  onBlur={(e) => suggestStepKeyFromLabel(e.target.value)}
+                  placeholder={isFr ? "ex. Custom Rotor" : "e.g. Custom Rotor"}
+                  className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium uppercase tracking-wider text-foreground/60">Label (FR)</label>
+                <input
+                  value={stepForm.label_fr}
+                  onChange={(e) => setStepForm((p) => ({ ...p, label_fr: e.target.value }))}
+                  placeholder={isFr ? "ex. Rotor personnalisé" : "e.g. Custom rotor"}
+                  className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-foreground/60">
+                  {isFr ? "Clé d’étape (unique, ex. custom_rotor)" : "Step key (unique, e.g. custom_rotor)"}
+                </label>
+                <input
+                  value={stepForm.step_key}
+                  onChange={(e) => setStepForm((p) => ({ ...p, step_key: e.target.value.replace(/[^a-z0-9_]/gi, "_") }))}
+                  placeholder="custom_rotor"
+                  className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2 font-mono text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  id="step-optional"
+                  checked={stepForm.optional}
+                  onChange={(e) => setStepForm((p) => ({ ...p, optional: e.target.checked }))}
+                  className="rounded border-foreground/30"
+                />
+                <label htmlFor="step-optional" className="text-sm text-foreground/80">
+                  {isFr ? "Étape optionnelle (le client peut passer)" : "Optional step (customer can skip)"}
+                </label>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleCreateStep}
+                disabled={createStepLoading || !stepForm.label_en.trim() || !stepForm.step_key.trim()}
+                className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {createStepLoading ? "…" : isFr ? "Créer l’étape" : "Create step"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateStep(false);
+                  setStepForm({ label_en: "", label_fr: "", step_key: "", optional: false });
+                }}
+                className="rounded-lg border border-foreground/20 px-4 py-2 text-sm"
+              >
+                {isFr ? "Annuler" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8 lg:flex-row lg:gap-12">
@@ -370,13 +547,25 @@ export default function AdminConfiguratorPage() {
           )}
 
           <h2 className="text-2xl font-semibold text-foreground">
-            {isFr ? "Choisissez" : "Select"} {currentStepMeta ? (isFr ? currentStepMeta.labelFr : currentStepMeta.labelEn) : currentStepKey}
+            {isFr ? "Choisissez" : "Select"} {currentStepMeta ? (isFr ? currentStepMeta.labelFr : currentStepMeta.labelEn) : stepLabelForBar(currentStepKey) || currentStepKey}
           </h2>
           <p className="mt-1 text-sm text-foreground/60">
             {currentStepKey === "function"
               ? isFr ? "Types de montres. Cliquez sur une carte pour modifier ou définir les étapes." : "Watch types. Click a card to edit or set steps."
               : isFr ? "Cliquez sur une carte pour modifier. Les options s'affichent comme pour le client." : "Click a card to edit. Options appear as customers see them."}
           </p>
+          {currentStepRow && (currentStepRow as { step_key?: string }).step_key !== "function" && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={handleDeleteStep}
+                disabled={deleteStepLoading}
+                className="rounded-full border border-red-200 px-3 py-1.5 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+              >
+                {deleteStepLoading ? "…" : isFr ? "Supprimer cette étape" : "Delete this step"}
+              </button>
+            </div>
+          )}
 
           {/* Option cards – same layout as customer; Edit / Steps (function only) / Delete on each */}
           <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
