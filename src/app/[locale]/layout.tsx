@@ -88,7 +88,7 @@ export default async function LocaleLayout({
         }}
       />
       <NavBar locale={locale} labels={dictionary.nav} isAdmin={isAdminUser} watchCategories={watchCategories} />
-      <main className="pt-28 md:pt-32" id="main-content">{children}</main>
+      <main className="pt-28 md:pt-32 bg-[var(--logo-green)]" id="main-content">{children}</main>
       <Footer locale={locale} />
       <CartToast locale={locale} />
     </div>
