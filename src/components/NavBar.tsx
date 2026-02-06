@@ -152,7 +152,25 @@ export default function NavBar({
             priority
           />
         </Link>
-        <div className="flex items-center justify-end gap-3 md:gap-4">
+        <div className="flex items-center justify-end gap-2 md:gap-4">
+          {/* Cart: always visible on mobile; on desktop it's in the nav block below */}
+          <Link
+            href={user ? `/${activeLocale}/cart` : `/${activeLocale}/account/login`}
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-foreground/20 text-foreground/80 transition hover:border-foreground hover:text-foreground md:hidden"
+            aria-label={labels.cart}
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+            {cartCount > 0 && (
+              <span
+                className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--logo-green)] text-[10px] font-bold text-[var(--logo-gold)]"
+                aria-hidden
+              >
+                {cartCount > 99 ? "99+" : cartCount}
+              </span>
+            )}
+          </Link>
           <button
             type="button"
             onClick={() => setMobileOpen((prev) => !prev)}
