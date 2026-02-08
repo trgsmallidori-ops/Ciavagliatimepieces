@@ -31,7 +31,7 @@ export default async function ConfiguratorPage({
   const { edit: editCartItemId } = await searchParams;
 
   return (
-    <section className="min-h-screen bg-neutral-900">
+    <section className="min-h-screen bg-[var(--logo-green)]">
       <Configurator locale={locale} editCartItemId={editCartItemId ?? undefined} />
     </section>
   );

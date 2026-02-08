@@ -28,7 +28,7 @@ export default async function ShopPage({ params }: { params: Promise<{ locale: L
   const supabase = createServerClient();
   const { data: products } = await supabase
     .from("products")
-    .select("id, name, description, price, image, stock")
+    .select("id, name, description, price, original_price, image, stock")
     .eq("active", true)
     .order("created_at", { ascending: false });
 
@@ -37,6 +37,7 @@ export default async function ShopPage({ params }: { params: Promise<{ locale: L
     name: p.name,
     description: p.description ?? "",
     price: Number(p.price),
+    original_price: p.original_price != null ? Number(p.original_price) : null,
     image: p.image ?? "/images/hero-1.svg",
     stock: p.stock ?? 0,
   }));

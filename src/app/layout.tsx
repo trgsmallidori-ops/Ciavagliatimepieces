@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { SITE_NAME, SITE_URL, DEFAULT_DESCRIPTION_EN, fullUrl } from "@/lib/seo";
@@ -15,10 +15,14 @@ const bodyFont = Manrope({
 
 const ogImage = `${SITE_URL}/images/logo.png`;
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0f1417",
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  viewport: { width: "device-width", initialScale: 1 },
-  themeColor: "#0f1417",
   title: {
     default: `${SITE_NAME} | Custom Luxury Watches & Watchmaking Montreal`,
     template: `%s | ${SITE_NAME}`,

@@ -13,7 +13,9 @@ type ProductInput = {
   id?: string;
   name: string;
   description: string;
+  specifications?: string | null;
   price: number;
+  original_price?: number | null;
   image: string;
   stock: number;
   active: boolean;
@@ -58,7 +60,9 @@ export async function updateProduct(input: ProductInput & { id: string }) {
   if (input.stock < 0 || input.stock > 100000) {
     throw new Error("Stock must be between 0 and 100,000");
   }
-  
+  if (input.original_price != null && (Number(input.original_price) < 0 || Number(input.original_price) < input.price)) {
+    throw new Error("Original price must be greater than or equal to current price");
+  }
   const supabase = createServerClient();
   const { id, ...rest } = input;
   const { error } = await supabase
@@ -68,6 +72,8 @@ export async function updateProduct(input: ProductInput & { id: string }) {
   if (error) throw error;
   revalidatePath("/[locale]/shop", "page");
   revalidatePath("/[locale]/shop/[category]", "page");
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/specials", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
 
@@ -84,7 +90,9 @@ export async function createProduct(input: ProductInput) {
   if (input.stock < 0 || input.stock > 100000) {
     throw new Error("Stock must be between 0 and 100,000");
   }
-  
+  if (input.original_price != null && (Number(input.original_price) < 0 || Number(input.original_price) < input.price)) {
+    throw new Error("Original price must be greater than or equal to current price");
+  }
   const supabase = createServerClient();
   const id =
     input.id ??
@@ -101,7 +109,9 @@ export async function createProduct(input: ProductInput) {
     id,
     name: input.name,
     description: input.description,
+    specifications: input.specifications ?? null,
     price: input.price,
+    original_price: input.original_price ?? null,
     image: input.image || "/images/hero-1.svg",
     stock: input.stock ?? 0,
     active: input.active ?? true,
@@ -110,6 +120,8 @@ export async function createProduct(input: ProductInput) {
   if (error) throw error;
   revalidatePath("/[locale]/shop", "page");
   revalidatePath("/[locale]/shop/[category]", "page");
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/specials", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
 
@@ -125,6 +137,7 @@ export async function deleteProduct(id: string) {
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) throw error;
   revalidatePath("/[locale]/shop", "page");
+  revalidatePath("/[locale]/specials", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
 
@@ -293,6 +306,25 @@ export async function updateWatchCategory(
   revalidatePath("/[locale]/shop", "page");
   revalidatePath("/[locale]/shop/[category]", "page");
   revalidatePath("/[locale]/account/admin", "page");
+}
+
+export async function reorderWatchCategory(categoryId: string, direction: "up" | "down"): Promise<void> {
+  await requireAdmin();
+  if (!categoryId) throw new Error("Invalid id");
+  const supabase = createServerClient();
+  const { data: rows, error: fetchErr } = await supabase
+    .from("watch_categories")
+    .select("id, sort_order")
+    .order("sort_order", { ascending: true });
+  if (fetchErr || !rows?.length) return;
+  const idx = rows.findIndex((r: { id: string }) => r.id === categoryId);
+  if (idx === -1) return;
+  const prevIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (prevIdx < 0 || prevIdx >= rows.length) return;
+  const current = rows[idx] as { id: string; sort_order: number };
+  const neighbour = rows[prevIdx] as { id: string; sort_order: number };
+  await updateWatchCategory(current.id, { sort_order: neighbour.sort_order });
+  await updateWatchCategory(neighbour.id, { sort_order: current.sort_order });
 }
 
 export async function deleteWatchCategory(id: string) {
@@ -602,6 +634,7 @@ export type ConfiguratorOptionRow = {
   label_fr: string;
   letter: string;
   price: number;
+  discount_percent?: number | null;
   image_url: string | null;
   preview_image_url: string | null;
   sort_order: number;
@@ -633,7 +666,7 @@ export async function getConfiguratorOptions(stepId: string, parentOptionId: str
     const supabase = createServerClient();
     let q = supabase
       .from("configurator_options")
-      .select("id, step_id, parent_option_id, label_en, label_fr, letter, price, image_url, preview_image_url, sort_order")
+      .select("id, step_id, parent_option_id, label_en, label_fr, letter, price, discount_percent, image_url, preview_image_url, sort_order")
       .eq("step_id", stepId)
       .order("sort_order", { ascending: true });
     if (parentOptionId === null) {
@@ -677,7 +710,7 @@ export async function getFunctionOptions(): Promise<ConfiguratorOptionRow[]> {
   if (!step?.id) return [];
   const { data, error } = await supabase
     .from("configurator_options")
-    .select("id, step_id, parent_option_id, label_en, label_fr, letter, price, image_url, preview_image_url, sort_order")
+    .select("id, step_id, parent_option_id, label_en, label_fr, letter, price, discount_percent, image_url, preview_image_url, sort_order")
     .eq("step_id", step.id)
     .is("parent_option_id", null)
     .order("sort_order", { ascending: true });
@@ -726,7 +759,7 @@ export async function getAdminConfiguratorOptions(stepId?: string | null, parent
   const supabase = createServerClient();
   let q = supabase
     .from("configurator_options")
-    .select("id, step_id, parent_option_id, label_en, label_fr, letter, price, image_url, preview_image_url, sort_order")
+    .select("id, step_id, parent_option_id, label_en, label_fr, letter, price, discount_percent, image_url, preview_image_url, sort_order")
     .order("sort_order", { ascending: true });
   if (stepId) q = q.eq("step_id", stepId);
   if (parentOptionId === null) q = q.is("parent_option_id", null);
@@ -799,6 +832,7 @@ export async function createConfiguratorOption(input: {
   label_fr?: string;
   letter: string;
   price: number;
+  discount_percent?: number | null;
   image_url?: string | null;
   preview_image_url?: string | null;
   sort_order?: number;
@@ -806,6 +840,7 @@ export async function createConfiguratorOption(input: {
   await requireAdmin();
   if (!input.step_id || !input.label_en?.trim()) throw new Error("Step and label required");
   const supabase = createServerClient();
+  const discount = input.discount_percent != null ? Math.min(100, Math.max(0, Number(input.discount_percent))) : 0;
   const { error } = await supabase.from("configurator_options").insert({
     step_id: input.step_id,
     parent_option_id: input.parent_option_id ?? null,
@@ -813,6 +848,7 @@ export async function createConfiguratorOption(input: {
     label_fr: (input.label_fr ?? input.label_en).trim(),
     letter: (input.letter || "A").slice(0, 1),
     price: Number(input.price) ?? 0,
+    discount_percent: discount,
     image_url: input.image_url ?? null,
     preview_image_url: input.preview_image_url ?? null,
     sort_order: input.sort_order ?? 0,
@@ -829,6 +865,7 @@ export async function updateConfiguratorOption(
     label_fr?: string;
     letter?: string;
     price?: number;
+    discount_percent?: number | null;
     image_url?: string | null;
     preview_image_url?: string | null;
     sort_order?: number;
@@ -843,6 +880,7 @@ export async function updateConfiguratorOption(
   if (input.label_fr !== undefined) updates.label_fr = input.label_fr;
   if (input.letter !== undefined) updates.letter = input.letter.slice(0, 1);
   if (input.price !== undefined) updates.price = input.price;
+  if (input.discount_percent !== undefined) updates.discount_percent = input.discount_percent == null ? 0 : Math.min(100, Math.max(0, Number(input.discount_percent)));
   if (input.image_url !== undefined) updates.image_url = input.image_url;
   if (input.preview_image_url !== undefined) updates.preview_image_url = input.preview_image_url;
   if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
@@ -997,10 +1035,11 @@ export async function setConfiguratorAddonOptions(addonId: string, optionIds: st
 /** Public: full configurator data for customer (no auth). Used by Configurator component. */
 export type PublicConfiguratorData = {
   stepsMeta: { id: string; step_key: string | null; label_en: string; label_fr: string; optional: boolean; sort_order: number; image_url: string | null }[];
-  functionOptions: { id: string; label_en: string; label_fr: string; letter: string; price: number }[];
+  functionOptions: { id: string; label_en: string; label_fr: string; letter: string; price: number; discount_percent: number }[];
   functionStepsMap: Record<string, string[]>;
-  options: { id: string; step_id: string; parent_option_id: string | null; label_en: string; label_fr: string; letter: string; price: number; image_url: string | null; preview_image_url: string | null }[];
+  options: { id: string; step_id: string; parent_option_id: string | null; label_en: string; label_fr: string; letter: string; price: number; discount_percent: number; image_url: string | null; preview_image_url: string | null }[];
   addons: { id: string; step_id: string; label_en: string; label_fr: string; price: number; option_ids: string[] }[];
+  configuratorDiscountPercent: number;
 };
 
 export async function getPublicConfiguratorData(): Promise<PublicConfiguratorData | null> {
@@ -1028,7 +1067,7 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
 
     const { data: allOptions, error: optErr } = await supabase
       .from("configurator_options")
-      .select("id, step_id, parent_option_id, label_en, label_fr, letter, price, image_url, preview_image_url")
+      .select("id, step_id, parent_option_id, label_en, label_fr, letter, price, discount_percent, image_url, preview_image_url")
       .order("sort_order", { ascending: true });
     if (optErr) return null;
 
@@ -1040,13 +1079,14 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       label_fr: o.label_fr,
       letter: (o as { letter?: string }).letter ?? "A",
       price: Number((o as { price?: number }).price ?? 0),
+      discount_percent: Number((o as { discount_percent?: number }).discount_percent ?? 0),
     }));
 
     const { data: fsRows, error: fsErr } = await supabase
       .from("configurator_function_steps")
       .select("function_option_id, step_id, sort_order")
       .order("sort_order", { ascending: true });
-    if (fsErr) return { stepsMeta, functionOptions, functionStepsMap: {}, options: allOptions ?? [], addons: [] };
+    if (fsErr) return { stepsMeta, functionOptions, functionStepsMap: {}, options: allOptions ?? [], addons: [], configuratorDiscountPercent: 0 };
 
     const functionStepsMap: Record<string, string[]> = {};
     (fsRows ?? []).forEach((r: { function_option_id: string; step_id: string }) => {
@@ -1057,7 +1097,7 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
     const { data: addonsRows, error: addonsErr } = await supabase
       .from("configurator_addons")
       .select("id, step_id, label_en, label_fr, price");
-    if (addonsErr) return { stepsMeta, functionOptions, functionStepsMap, options: allOptions ?? [], addons: [] };
+    if (addonsErr) return { stepsMeta, functionOptions, functionStepsMap, options: allOptions ?? [], addons: [], configuratorDiscountPercent: 0 };
 
     const { data: addonOptRows } = await supabase.from("configurator_addon_options").select("addon_id, option_id");
     const optionIdsByAddon: Record<string, string[]> = {};
@@ -1083,11 +1123,19 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       label_fr: o.label_fr,
       letter: (o as { letter?: string }).letter ?? "A",
       price: Number((o as { price?: number }).price ?? 0),
+      discount_percent: Number((o as { discount_percent?: number }).discount_percent ?? 0),
       image_url: (o as { image_url?: string }).image_url ?? null,
       preview_image_url: (o as { preview_image_url?: string }).preview_image_url ?? null,
     }));
 
-    return { stepsMeta, functionOptions, functionStepsMap, options, addons };
+    const { data: discountRow } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "configurator_discount_percent")
+      .single();
+    const configuratorDiscountPercent = Math.min(100, Math.max(0, Number((discountRow as { value?: string } | null)?.value ?? 0)));
+
+    return { stepsMeta, functionOptions, functionStepsMap, options, addons, configuratorDiscountPercent };
   } catch {
     return null;
   }
@@ -1221,4 +1269,24 @@ export async function deleteOrder(orderId: string): Promise<void> {
   if (error) throw error;
   revalidatePath("/[locale]/account/admin", "page");
   revalidatePath("/[locale]/account/admin/orders", "page");
+}
+
+// ——— Configurator discount (site-wide % off custom builds) ———
+const CONFIGURATOR_DISCOUNT_KEY = "configurator_discount_percent";
+
+export async function getConfiguratorDiscount(): Promise<number> {
+  await requireAdmin();
+  const supabase = createServerClient();
+  const { data } = await supabase.from("site_settings").select("value").eq("key", CONFIGURATOR_DISCOUNT_KEY).single();
+  const val = (data as { value?: string } | null)?.value;
+  return Math.min(100, Math.max(0, Number(val ?? 0)));
+}
+
+export async function setConfiguratorDiscount(percent: number): Promise<void> {
+  await requireAdmin();
+  const p = Math.min(100, Math.max(0, Number(percent)));
+  const supabase = createServerClient();
+  await supabase.from("site_settings").upsert({ key: CONFIGURATOR_DISCOUNT_KEY, value: String(p), updated_at: new Date().toISOString() }, { onConflict: "key" });
+  revalidatePath("/[locale]/configurator", "page");
+  revalidatePath("/[locale]/account/admin/configurator", "page");
 }

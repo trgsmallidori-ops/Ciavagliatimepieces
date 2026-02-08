@@ -106,21 +106,27 @@ async function calculateCustomBuildPrice(
 
     let q = supabase
       .from("configurator_options")
-      .select("id, price")
+      .select("id, price, discount_percent")
       .eq("step_id", stepId)
       .or(`parent_option_id.is.null,parent_option_id.eq.${functionOptionId}`);
     const { data: options } = await q;
+
+    const effectivePrice = (opt: { price: number; discount_percent?: number | null }) => {
+      const p = Number(opt.price ?? 0);
+      const d = Math.min(100, Math.max(0, Number(opt.discount_percent ?? 0)));
+      return d > 0 ? p * (1 - d / 100) : p;
+    };
 
     if (stepKey === "extra") {
       const idsToSum = extras.length ? extras : (selectedOptionId ? [selectedOptionId] : []);
       for (const id of idsToSum) {
         if (typeof id !== "string" || !id) continue;
         const opt = options?.find((o: { id: string }) => o.id === id);
-        if (opt) total += Number((opt as { price: number }).price);
+        if (opt) total += effectivePrice(opt as { price: number; discount_percent?: number | null });
       }
     } else if (selectedOptionId && typeof selectedOptionId === "string" && selectedOptionId) {
       const opt = options?.find((o: { id: string }) => o.id === selectedOptionId);
-      if (opt) total += Number((opt as { price: number }).price);
+      if (opt) total += effectivePrice(opt as { price: number; discount_percent?: number | null });
     }
   }
 
@@ -209,6 +215,15 @@ export async function POST(request: NextRequest) {
       });
       if (amount === 0 && typeof cfg.price === "number" && cfg.price > 0) {
         amount = cfg.price;
+      }
+      const { data: discountRow } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "configurator_discount_percent")
+        .single();
+      const discountPercent = Math.min(100, Math.max(0, Number((discountRow as { value?: string } | null)?.value ?? 0)));
+      if (discountPercent > 0) {
+        amount = amount * (1 - discountPercent / 100);
       }
       summary = "Custom build";
 

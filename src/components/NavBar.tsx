@@ -13,6 +13,7 @@ import type { WatchCategory } from "@/lib/watch-categories";
 type NavLabels = {
   home: string;
   shop: string;
+  specials: string;
   configurator: string;
   allWatches: string;
   contact: string;
@@ -160,7 +161,7 @@ export default function NavBar({
         </svg>
       </button>
     <header
-      className={`fixed left-0 right-0 top-0 z-50 w-full bg-[var(--logo-green)] transition-transform duration-300 ${headerHidden ? "-translate-y-full" : "translate-y-0"}`}
+      className={`fixed left-0 right-0 top-0 z-50 w-full border-b border-white/20 bg-[var(--logo-green)] transition-transform duration-300 ${headerHidden ? "-translate-y-full" : "translate-y-0"}`}
     >
       {/* Full-width top bar: left nav | center logo | right account + locale + cart */}
       <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-2.5">
@@ -305,7 +306,14 @@ export default function NavBar({
               className="transition hover:text-white"
               onClick={() => setMobileOpen(false)}
             >
-              {labels.shop}
+              {labels.allWatches}
+            </Link>
+            <Link
+              href={`/${activeLocale}/specials`}
+              className="text-[var(--logo-gold)] transition hover:text-white"
+              onClick={() => setMobileOpen(false)}
+            >
+              {labels.specials}
             </Link>
             {watchCategories.map((cat) => {
               const label = activeLocale === "fr" ? cat.label_fr : cat.label_en;
@@ -320,13 +328,6 @@ export default function NavBar({
                 </Link>
               );
             })}
-            <Link
-              href={`/${activeLocale}/shop`}
-              className="transition hover:text-white"
-              onClick={() => setMobileOpen(false)}
-            >
-              {labels.allWatches}
-            </Link>
             <div className="h-px bg-white/20" />
             {user ? (
               <>
@@ -406,7 +407,13 @@ export default function NavBar({
                 href={`/${activeLocale}/shop`}
                 className="text-xs uppercase tracking-[0.2em] text-white/80 transition hover:text-white"
               >
-                {labels.shop}
+                {labels.allWatches}
+              </Link>
+              <Link
+                href={`/${activeLocale}/specials`}
+                className="text-xs uppercase tracking-[0.2em] text-[var(--logo-gold)] transition hover:text-white"
+              >
+                {labels.specials}
               </Link>
               {watchCategories.map((cat) => {
                 const label = activeLocale === "fr" ? cat.label_fr : cat.label_en;
@@ -420,12 +427,6 @@ export default function NavBar({
                   </Link>
                 );
               })}
-              <Link
-                href={`/${activeLocale}/shop`}
-                className="text-xs uppercase tracking-[0.2em] text-white/80 transition hover:text-white"
-              >
-                {labels.allWatches}
-              </Link>
             </div>
           </div>
         </>

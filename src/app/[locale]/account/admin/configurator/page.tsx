@@ -20,6 +20,8 @@ import {
   getAdminConfiguratorAddons,
   updateConfiguratorAddon,
   uploadProductImage,
+  getConfiguratorDiscount,
+  setConfiguratorDiscount,
 } from "../actions";
 import type {
   ConfiguratorStepRow,
@@ -49,6 +51,8 @@ export default function AdminConfiguratorPage() {
   const [addonsWithOptions, setAddonsWithOptions] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [configuratorDiscountPercent, setConfiguratorDiscountPercent] = useState<number>(0);
+  const [configuratorDiscountSaving, setConfiguratorDiscountSaving] = useState(false);
 
   /** Which watch type we're "editing as" — step bar and options match customer view for this type */
   const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(null);
@@ -61,6 +65,7 @@ export default function AdminConfiguratorPage() {
     label_fr: "",
     letter: "A",
     price: 0,
+    discount_percent: 0,
     image_url: "",
     preview_image_url: "",
   });
@@ -118,6 +123,8 @@ export default function AdminConfiguratorPage() {
         })
       );
       setAddonsWithOptions(optionIdsByAddon);
+      const discount = await getConfiguratorDiscount();
+      setConfiguratorDiscountPercent(discount);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unauthorized");
     } finally {
@@ -313,6 +320,7 @@ export default function AdminConfiguratorPage() {
         label_fr: optionForm.label_fr,
         letter: optionForm.letter,
         price: optionForm.price,
+        discount_percent: optionForm.discount_percent ?? null,
         parent_option_id: optionForm.parent_option_id || null,
         image_url: optionForm.image_url.trim() || null,
         preview_image_url: optionForm.preview_image_url.trim() || null,
@@ -335,6 +343,7 @@ export default function AdminConfiguratorPage() {
         label_fr: optionForm.label_fr,
         letter: optionForm.letter,
         price: optionForm.price,
+        discount_percent: optionForm.discount_percent || null,
         image_url: optionForm.image_url.trim() || null,
         preview_image_url: optionForm.preview_image_url.trim() || null,
       });
@@ -347,6 +356,7 @@ export default function AdminConfiguratorPage() {
         label_fr: "",
         letter: "A",
         price: 0,
+        discount_percent: 0,
         image_url: "",
         preview_image_url: "",
       });
@@ -405,23 +415,23 @@ export default function AdminConfiguratorPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center bg-[var(--background)]">
+      <div className="flex min-h-[60vh] items-center justify-center bg-[var(--logo-green)]">
         <p className="text-white/90">{isFr ? "Chargement..." : "Loading..."}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-foreground">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-foreground/10 bg-white/80 px-6 py-4 shadow-[0_1px_0_rgba(15,20,23,0.06)]">
+    <div className="min-h-screen bg-[var(--logo-green)] text-white">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/20 bg-[var(--logo-green)] px-6 py-4">
         <Link
           href={`/${locale}/account/admin`}
-          className="text-sm font-medium text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
+          className="text-sm font-medium text-white/90 transition hover:text-white"
         >
           ← {isFr ? "Retour admin" : "Back to admin"}
         </Link>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium uppercase tracking-wider text-foreground/50">
+          <span className="text-xs font-medium uppercase tracking-wider text-white/70">
             {isFr ? "Éditer comme" : "Editing as"}
           </span>
           <select
@@ -433,17 +443,54 @@ export default function AdminConfiguratorPage() {
               setEditingFunctionStepsFor(null);
               setEditingAddonId(null);
             }}
-            className="rounded-lg border border-foreground/20 bg-white px-3 py-2 text-sm font-medium text-foreground"
+            className="rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white"
           >
             {functionOptions.map((o) => (
-              <option key={o.id} value={o.id}>{isFr ? o.label_fr || o.label_en : o.label_en}</option>
+              <option key={o.id} value={o.id} className="bg-[var(--logo-green)] text-white">{isFr ? o.label_fr || o.label_en : o.label_en}</option>
             ))}
           </select>
         </div>
       </header>
 
+      {/* Configurator discount – site-wide % off custom builds */}
+      <div className="border-b border-white/20 bg-[var(--logo-green)] px-6 py-3">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-4">
+          <label className="text-sm font-medium text-white">
+            {isFr ? "Réduction configurateur (%)" : "Configurator discount (%)"}
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={configuratorDiscountPercent}
+            onChange={(e) => setConfiguratorDiscountPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+            className="w-20 rounded border border-white/30 bg-white/10 px-2 py-1.5 text-sm text-white"
+          />
+          <button
+            type="button"
+            disabled={configuratorDiscountSaving}
+            onClick={async () => {
+              setConfiguratorDiscountSaving(true);
+              try {
+                await setConfiguratorDiscount(configuratorDiscountPercent);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Failed to save");
+              } finally {
+                setConfiguratorDiscountSaving(false);
+              }
+            }}
+            className="rounded border border-white/30 bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20 disabled:opacity-50"
+          >
+            {configuratorDiscountSaving ? (isFr ? "Enregistrement…" : "Saving…") : (isFr ? "Enregistrer" : "Save")}
+          </button>
+          <span className="text-xs text-white/70">
+            {isFr ? "Appliqué au total des builds sur mesure au checkout." : "Applied to custom build total at checkout."}
+          </span>
+        </div>
+      </div>
+
       {/* Step bar – same steps and style as customer for selected watch type */}
-      <div className="border-b border-foreground/10 bg-white/60 px-6 py-4">
+      <div className="border-b border-white/20 bg-[var(--logo-green)] px-6 py-4">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2 md:gap-4">
           {stepsForFunction.map((stepKey, i) => {
             const isActive = currentStepKey === stepKey;
@@ -463,19 +510,19 @@ export default function AdminConfiguratorPage() {
               >
                 <div
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded border-2 transition ${
-                    isActive ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-foreground/25 bg-foreground/5 text-foreground/60"
+                    isActive ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-white/40 bg-white/10 text-white/80"
                   }`}
                 >
                   <span className="text-xs font-semibold">{i + 1}</span>
                 </div>
                 <span
                   className={`text-xs font-medium uppercase tracking-wider ${
-                    isActive ? "text-[var(--accent)]" : "text-foreground/50"
+                    isActive ? "text-white" : "text-white/60"
                   }`}
                 >
                   {stepLabelForBar(stepKey)}
                 </span>
-                {isActive && <div className="h-0.5 w-8 bg-[var(--accent)]" />}
+                {isActive && <div className="h-0.5 w-8 bg-white" />}
               </button>
             );
           })}
@@ -492,10 +539,10 @@ export default function AdminConfiguratorPage() {
             className="flex flex-col items-center gap-1"
             aria-label={isFr ? "Ajouter une étape" : "Add step"}
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border-2 border-dashed border-foreground/30 bg-foreground/5 text-foreground/50 transition hover:border-[var(--accent)] hover:bg-[var(--accent)]/10 hover:text-[var(--accent)]">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border-2 border-dashed border-white/40 bg-white/10 text-white/70 transition hover:border-white hover:bg-white/20 hover:text-white">
               <span className="text-lg font-medium">+</span>
             </div>
-            <span className="text-xs font-medium uppercase tracking-wider text-foreground/50">
+            <span className="text-xs font-medium uppercase tracking-wider text-white/60">
               {isFr ? "Nouvelle étape" : "New step"}
             </span>
           </button>
@@ -629,10 +676,10 @@ export default function AdminConfiguratorPage() {
             </div>
           )}
 
-          <h2 className="text-2xl font-semibold text-foreground">
+          <h2 className="text-2xl font-semibold text-white">
             {isFr ? "Choisissez" : "Select"} {currentStepMeta ? (isFr ? currentStepMeta.labelFr : currentStepMeta.labelEn) : stepLabelForBar(currentStepKey) || currentStepKey}
           </h2>
-          <p className="mt-1 text-sm text-foreground/60">
+          <p className="mt-1 text-sm text-white/70">
             {currentStepKey === "function"
               ? isFr ? "Types de montres. Cliquez sur une carte pour modifier ou définir les étapes." : "Watch types. Click a card to edit or set steps."
               : isFr ? "Cliquez sur une carte pour modifier. Les options s'affichent comme pour le client." : "Click a card to edit. Options appear as customers see them."}
@@ -640,11 +687,11 @@ export default function AdminConfiguratorPage() {
           {currentStepRow && (currentStepRow as { step_key?: string }).step_key !== "function" && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <div className="flex flex-wrap items-center gap-2">
-                <label className="text-xs text-foreground/60">{isFr ? "Image de l’étape" : "Step image"}</label>
+                <label className="text-xs text-white/70">{isFr ? "Image de l’étape" : "Step image"}</label>
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
-                  className="block max-w-[180px] text-xs text-foreground/70 file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
+                  className="block max-w-[180px] text-xs text-white/80 file:mr-2 file:rounded file:border-0 file:bg-white/20 file:px-2 file:py-1 file:text-xs file:text-white"
                   disabled={uploadingStepImage}
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
@@ -668,18 +715,18 @@ export default function AdminConfiguratorPage() {
                   value={stepImageForm.image_url}
                   onChange={(e) => setStepImageForm((p) => ({ ...p, image_url: e.target.value }))}
                   placeholder="https://…"
-                  className="w-64 rounded-lg border border-foreground/20 px-2 py-1.5 text-sm"
+                  className="w-64 rounded-lg border border-white/30 bg-white/10 px-2 py-1.5 text-sm text-white placeholder:text-white/50"
                 />
                 <button
                   type="button"
                   onClick={handleSaveStepImage}
                   disabled={savingStepImage}
-                  className="rounded-full border border-foreground/20 px-3 py-1.5 text-xs uppercase tracking-wide hover:bg-foreground/5 disabled:opacity-50"
+                  className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs uppercase tracking-wide text-white hover:bg-white/20 disabled:opacity-50"
                 >
                   {savingStepImage ? "…" : isFr ? "Enregistrer" : "Save"}
                 </button>
               </div>
-              {uploadingStepImage && <span className="text-xs text-foreground/50">{isFr ? "Upload…" : "Uploading…"}</span>}
+              {uploadingStepImage && <span className="text-xs text-white/60">{isFr ? "Upload…" : "Uploading…"}</span>}
               {uploadError && <span className="text-xs text-red-600">{uploadError}</span>}
               <button
                 type="button"
@@ -718,7 +765,17 @@ export default function AdminConfiguratorPage() {
                     </div>
                   )}
                   <span className="mt-2 block w-full truncate text-center text-sm font-medium text-foreground">{label}</span>
-                  <span className="text-sm font-medium text-[var(--accent)]">${Number(opt.price).toLocaleString()}</span>
+                  <span className="text-sm font-medium text-[var(--accent)]">
+                    ${(() => {
+                      const p = Number(opt.price);
+                      const d = Math.min(100, Math.max(0, Number((opt as { discount_percent?: number }).discount_percent ?? 0)));
+                      const effective = d > 0 ? p * (1 - d / 100) : p;
+                      return effective.toLocaleString();
+                    })()}
+                    {(opt as { discount_percent?: number }).discount_percent > 0 && (
+                      <span className="ml-1.5 text-xs text-foreground/50 line-through">${Number(opt.price).toLocaleString()}</span>
+                    )}
+                  </span>
                   {currentStepKey !== "function" && opt.parent_option_id && (
                     <span className="mt-0.5 text-xs text-foreground/50">
                       {isFr ? "Pour" : "For"}: {functionOptions.find((f) => f.id === opt.parent_option_id)?.label_en ?? ""}
@@ -737,17 +794,18 @@ export default function AdminConfiguratorPage() {
                           label_fr: opt.label_fr,
                           letter: opt.letter,
                           price: opt.price,
+                          discount_percent: (opt as { discount_percent?: number }).discount_percent ?? 0,
                           image_url: (opt as { image_url?: string }).image_url ?? "",
                           preview_image_url: (opt as { preview_image_url?: string }).preview_image_url ?? "",
                         });
                         setShowAddOption(false);
                       }}
-                      className="rounded-full border border-foreground/20 bg-white px-3 py-1.5 text-xs uppercase tracking-wide hover:bg-foreground/5"
+                      className="rounded-full border border-foreground/20 bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-foreground hover:bg-foreground/5"
                     >
                       {isFr ? "Modifier" : "Edit"}
                     </button>
                     {currentStepKey === "function" && (
-                      <button type="button" onClick={() => openEditFunctionSteps(opt.id)} className="rounded-full border border-foreground/20 bg-white px-3 py-1.5 text-xs uppercase tracking-wide hover:bg-foreground/5">
+                      <button type="button" onClick={() => openEditFunctionSteps(opt.id)} className="rounded-full border border-foreground/20 bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-foreground hover:bg-foreground/5">
                         {isFr ? "Étapes" : "Steps"}
                       </button>
                     )}
@@ -766,7 +824,7 @@ export default function AdminConfiguratorPage() {
             {currentStepKey === "function" ? (
               <button
                 type="button"
-                onClick={() => { if (!functionStep) return; setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: functionStep.id, parent_option_id: null, label_en: "", label_fr: "", letter: "A", price: 0, image_url: "", preview_image_url: "" }); }}
+                onClick={() => { if (!functionStep) return; setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: functionStep.id, parent_option_id: null, label_en: "", label_fr: "", letter: "A", price: 0, discount_percent: 0, image_url: "", preview_image_url: "" }); }}
                 disabled={!functionStep}
                 className="flex min-h-[140px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-foreground/30 bg-white/60 p-4 text-foreground/60 transition hover:border-foreground/50 hover:bg-white/80 hover:text-foreground/80 disabled:opacity-50"
               >
@@ -776,7 +834,7 @@ export default function AdminConfiguratorPage() {
             ) : currentStepRow ? (
               <button
                 type="button"
-                onClick={() => { setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: currentStepRow.id, parent_option_id: selectedFunctionId, label_en: "", label_fr: "", letter: "A", price: 0, image_url: "", preview_image_url: "" }); }}
+                onClick={() => { setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: currentStepRow.id, parent_option_id: selectedFunctionId, label_en: "", label_fr: "", letter: "A", price: 0, discount_percent: 0, image_url: "", preview_image_url: "" }); }}
                 className="flex min-h-[140px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-foreground/30 bg-white/60 p-4 text-foreground/60 transition hover:border-foreground/50 hover:bg-white/80 hover:text-foreground/80"
               >
                 <span className="text-2xl">+</span>
@@ -918,7 +976,7 @@ export default function AdminConfiguratorPage() {
                                   price: addon.price,
                                 });
                               }}
-                              className="rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase"
+                              className="rounded-full border border-foreground/20 bg-white px-4 py-2 text-xs font-medium uppercase text-foreground"
                             >
                               {isFr ? "Modifier" : "Edit"}
                             </button>
@@ -932,34 +990,34 @@ export default function AdminConfiguratorPage() {
 
           {/* Add/Edit option form (shared for Function and other steps) */}
           {(showAddOption || editingOptionId) && (
-            <div className="mt-8 rounded-xl border-2 border-[var(--accent)]/30 bg-white/95 p-6">
-              <h3 className="text-lg font-medium">
+            <div className="mt-8 rounded-xl border-2 border-[var(--accent)]/30 bg-white p-6 text-foreground">
+              <h3 className="text-lg font-semibold text-foreground">
                 {editingOptionId ? (isFr ? "Modifier l’option" : "Edit option") : currentStepKey === "function" ? (isFr ? "Nouveau type de montre" : "New watch type") : (isFr ? "Nouvelle option" : "New option")}
               </h3>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-xs uppercase text-foreground/60">Label (EN)</label>
+                  <label className="text-xs font-medium uppercase tracking-wider text-foreground">Label (EN)</label>
                   <input
                     value={optionForm.label_en}
                     onChange={(e) => setOptionForm((p) => ({ ...p, label_en: e.target.value }))}
-                    className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2"
+                    className="mt-1 w-full rounded-lg border border-foreground/25 bg-white px-3 py-2 text-foreground placeholder:text-neutral-500"
                   />
                 </div>
                 <div>
-                  <label className="text-xs uppercase text-foreground/60">Label (FR)</label>
+                  <label className="text-xs font-medium uppercase tracking-wider text-foreground">Label (FR)</label>
                   <input
                     value={optionForm.label_fr}
                     onChange={(e) => setOptionForm((p) => ({ ...p, label_fr: e.target.value }))}
-                    className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2"
+                    className="mt-1 w-full rounded-lg border border-foreground/25 bg-white px-3 py-2 text-foreground placeholder:text-neutral-500"
                   />
                 </div>
                 {currentStepKey !== "function" && (
                   <div>
-                    <label className="text-xs uppercase text-foreground/60">{isFr ? "Pour fonction (vide = toutes)" : "For function (empty = all)"}</label>
+                    <label className="text-xs font-medium uppercase tracking-wider text-foreground">{isFr ? "Pour fonction (vide = toutes)" : "For function (empty = all)"}</label>
                     <select
                       value={optionForm.parent_option_id ?? ""}
                       onChange={(e) => setOptionForm((p) => ({ ...p, parent_option_id: e.target.value || null }))}
-                      className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2"
+                      className="mt-1 w-full rounded-lg border border-foreground/25 bg-white px-3 py-2 text-foreground"
                     >
                       <option value="">— {isFr ? "Toutes" : "All"}</option>
                       {functionOptions.map((o) => (
@@ -969,30 +1027,43 @@ export default function AdminConfiguratorPage() {
                   </div>
                 )}
                 <div>
-                  <label className="text-xs uppercase text-foreground/60">Letter</label>
+                  <label className="text-xs font-medium uppercase tracking-wider text-foreground">Letter</label>
                   <input
                     value={optionForm.letter}
                     onChange={(e) => setOptionForm((p) => ({ ...p, letter: e.target.value.slice(0, 1) }))}
                     maxLength={1}
-                    className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2"
+                    className="mt-1 w-full rounded-lg border border-foreground/25 bg-white px-3 py-2 text-foreground placeholder:text-neutral-500"
                   />
                 </div>
                 <div>
-                  <label className="text-xs uppercase text-foreground/60">Price ($)</label>
+                  <label className="text-xs font-medium uppercase tracking-wider text-foreground">Price ($)</label>
                   <input
                     type="number"
                     value={optionForm.price}
                     onChange={(e) => setOptionForm((p) => ({ ...p, price: Number(e.target.value) }))}
-                    className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2"
+                    className="mt-1 w-full rounded-lg border border-foreground/25 bg-white px-3 py-2 text-foreground placeholder:text-neutral-500"
                   />
                 </div>
+                <div>
+                  <label className="text-xs font-medium uppercase tracking-wider text-foreground">{isFr ? "Réduction (%)" : "Discount (%)"}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={optionForm.discount_percent}
+                    onChange={(e) => setOptionForm((p) => ({ ...p, discount_percent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) }))}
+                    placeholder="0"
+                    className="mt-1 w-full rounded-lg border border-foreground/25 bg-white px-3 py-2 text-foreground placeholder:text-neutral-500"
+                  />
+                  <p className="mt-0.5 text-xs text-foreground/60">{isFr ? "Optionnel. Réduit le prix de cette option." : "Optional. Reduces this option's price."}</p>
+                </div>
                 <div className="sm:col-span-2">
-                  <label className="text-xs uppercase text-foreground/60">{isFr ? "Image" : "Image"}</label>
+                  <label className="text-xs font-medium uppercase tracking-wider text-foreground">{isFr ? "Image" : "Image"}</label>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
-                      className="block max-w-[180px] text-xs text-foreground/70 file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
+                      className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
                       disabled={uploadingOptionImage !== null}
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
@@ -1016,18 +1087,18 @@ export default function AdminConfiguratorPage() {
                       value={optionForm.image_url}
                       onChange={(e) => setOptionForm((p) => ({ ...p, image_url: e.target.value }))}
                       placeholder={isFr ? "Ou URL" : "Or URL"}
-                      className="min-w-[200px] flex-1 rounded-lg border border-foreground/20 px-3 py-2 text-sm"
+                      className="min-w-[200px] flex-1 rounded-lg border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-neutral-500"
                     />
                   </div>
-                  {uploadingOptionImage === "image" && <p className="mt-1 text-xs text-foreground/50">{isFr ? "Upload…" : "Uploading…"}</p>}
+                  {uploadingOptionImage === "image" && <p className="mt-1 text-xs text-foreground/60">{isFr ? "Upload…" : "Uploading…"}</p>}
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="text-xs uppercase text-foreground/60">{isFr ? "Image aperçu" : "Preview image"}</label>
+                  <label className="text-xs font-medium uppercase tracking-wider text-foreground">{isFr ? "Image aperçu" : "Preview image"}</label>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
-                      className="block max-w-[180px] text-xs text-foreground/70 file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
+                      className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
                       disabled={uploadingOptionImage !== null}
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
@@ -1051,10 +1122,10 @@ export default function AdminConfiguratorPage() {
                       value={optionForm.preview_image_url}
                       onChange={(e) => setOptionForm((p) => ({ ...p, preview_image_url: e.target.value }))}
                       placeholder={isFr ? "Ou URL" : "Or URL"}
-                      className="min-w-[200px] flex-1 rounded-lg border border-foreground/20 px-3 py-2 text-sm"
+                      className="min-w-[200px] flex-1 rounded-lg border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-neutral-500"
                     />
                   </div>
-                  {uploadingOptionImage === "preview" && <p className="mt-1 text-xs text-foreground/50">{isFr ? "Upload…" : "Uploading…"}</p>}
+                  {uploadingOptionImage === "preview" && <p className="mt-1 text-xs text-foreground/60">{isFr ? "Upload…" : "Uploading…"}</p>}
                 </div>
                 {uploadError && <p className="mt-1 text-xs text-red-600">{uploadError}</p>}
               </div>
@@ -1062,7 +1133,7 @@ export default function AdminConfiguratorPage() {
                 <button
                   type="button"
                   onClick={editingOptionId ? handleSaveOption : handleAddOption}
-                  className="rounded-lg bg-foreground px-4 py-2 text-sm text-white"
+                  className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-white"
                 >
                   {editingOptionId ? (isFr ? "Enregistrer" : "Save") : (isFr ? "Créer" : "Create")}
                 </button>
@@ -1072,7 +1143,7 @@ export default function AdminConfiguratorPage() {
                     setEditingOptionId(null);
                     setShowAddOption(false);
                   }}
-                  className="rounded-lg border border-foreground/20 px-4 py-2 text-sm"
+                  className="rounded-lg border border-foreground/25 bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-foreground/5"
                 >
                   {isFr ? "Annuler" : "Cancel"}
                 </button>

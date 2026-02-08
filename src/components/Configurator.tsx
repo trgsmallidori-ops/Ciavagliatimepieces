@@ -166,6 +166,12 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
     [currentStepKey]
   );
 
+  const optionEffectivePrice = (o: { price: number; discount_percent?: number }) => {
+    const p = Number(o.price ?? 0);
+    const d = Math.min(100, Math.max(0, Number((o as { discount_percent?: number }).discount_percent ?? 0)));
+    return d > 0 ? p * (1 - d / 100) : p;
+  };
+
   const total = useMemo(() => {
     let t = 0;
     stepsForFunction.forEach((stepKey) => {
@@ -179,13 +185,16 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
           (o.parent_option_id === null || o.parent_option_id === functionId)
       );
       const o = opts.find((x) => x.id === id);
-      if (o) t += o.price;
+      if (o) t += optionEffectivePrice(o);
     });
     addons.forEach((addon) => {
       if (addonChecked[addon.id]) t += addon.price;
     });
     return t;
   }, [stepsForFunction, selections, functionId, functionStep?.id, stepIdsForFunction, options, addons, addonChecked]);
+
+  const discountPercent = configData?.configuratorDiscountPercent ?? 0;
+  const displayTotal = discountPercent > 0 ? total * (1 - discountPercent / 100) : total;
 
   const canContinue = useCallback(
     () => isOptionalStep || !!selectedId,
@@ -361,7 +370,7 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
           (o.parent_option_id === null || o.parent_option_id === functionId)
       );
       const o = opts.find((x) => x.id === id);
-      if (o) lines.push({ label: `${stepLabel}: ${isFr ? o.label_fr : o.label_en}`, price: o.price });
+      if (o) lines.push({ label: `${stepLabel}: ${isFr ? o.label_fr : o.label_en}`, price: optionEffectivePrice(o) });
     });
     addons.forEach((addon) => {
       if (addonChecked[addon.id]) {
@@ -386,19 +395,19 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
 
   if (dataLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--background)]">
-        <p className="text-foreground/70">{isFr ? "Chargement du configurateur..." : "Loading configurator..."}</p>
+      <div className="flex min-h-screen items-center justify-center bg-[var(--logo-green)]">
+        <p className="text-white/80">{isFr ? "Chargement du configurateur..." : "Loading configurator..."}</p>
       </div>
     );
   }
 
   if (!configData || !functionStep || functionOptions.length === 0) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--background)] px-6">
-        <p className="text-center text-foreground/80">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--logo-green)] px-6">
+        <p className="text-center text-white/90">
           {isFr ? "Le configurateur n’est pas encore configuré. Un administrateur peut définir les fonctions, étapes et options." : "The configurator is not set up yet. An admin can configure functions, steps and options."}
         </p>
-        <Link href={`/${locale}`} className="text-sm font-medium text-[var(--accent)] underline hover:text-[var(--accent-strong)]">
+        <Link href={`/${locale}`} className="text-sm font-medium text-white underline hover:text-white/80">
           {isFr ? "Retour à l’accueil" : "Back to home"}
         </Link>
       </div>
@@ -413,22 +422,9 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-foreground">
-      <header className="flex items-center justify-end border-b border-foreground/10 bg-white/80 px-6 py-4 shadow-[0_1px_0_rgba(15,20,23,0.06)]">
-        <button
-          type="button"
-          onClick={handleStartOver}
-          className="flex items-center gap-2 text-sm text-foreground/70 transition hover:text-foreground"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          {isFr ? "Recommencer" : "Start Over"}
-        </button>
-      </header>
-
-      <div className="border-b border-foreground/10 bg-white/60 px-6 py-4">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2 md:gap-4">
+    <div className="min-h-screen bg-[var(--logo-green)] text-white">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/20 bg-[var(--logo-green)] px-6 py-4">
+        <div className="flex flex-1 flex-wrap items-center justify-center gap-2 md:gap-4">
           {stepsForFunction.map((stepKey, i) => {
             const hasSelection = stepKey === "function" ? !!selections.function : !!selections[stepKey];
             const isOptional = stepKey === "function" ? false : (stepIdToMeta.get(stepIdsForFunction[i - 1])?.optional ?? false);
@@ -440,7 +436,7 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded border-2 transition ${
                     isCompleted || isActive
                       ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-                      : "border-foreground/25 bg-foreground/5 text-foreground/60"
+                      : "border-white/40 bg-white/10 text-white/80"
                   }`}
                 >
                   {isCompleted && stepIndex > i ? (
@@ -453,16 +449,26 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
                 </div>
                 <span
                   className={`text-xs font-medium uppercase tracking-wider ${
-                    isActive ? "text-[var(--accent)]" : isCompleted && stepIndex > i ? "text-foreground/70" : "text-foreground/50"
+                    isActive ? "text-white" : isCompleted && stepIndex > i ? "text-white/80" : "text-white/50"
                   }`}
                 >
                   {stepLabel(stepKey)}
                 </span>
-                {isActive && <div className="h-0.5 w-8 bg-[var(--accent)]" />}
+                {isActive && <div className="h-0.5 w-8 bg-white" />}
               </div>
             );
           })}
         </div>
+        <button
+          type="button"
+          onClick={handleStartOver}
+          className="flex items-center gap-2 rounded-lg border-2 border-white bg-white/10 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-white/20 hover:border-white"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {isFr ? "Recommencer" : "Start Over"}
+        </button>
       </div>
 
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8 lg:flex-row lg:gap-12">
@@ -497,10 +503,10 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
         </div>
 
         <div className="min-w-0 flex-1">
-          <h2 className="text-2xl font-semibold text-foreground">
+          <h2 className="text-2xl font-semibold text-white">
             {isFr ? "Choisissez" : "Select Your"} {currentStepMeta ? (isFr ? currentStepMeta.label_fr : currentStepMeta.label_en) : currentStepKey}
           </h2>
-          <p className="mt-1 text-sm text-foreground/60">
+          <p className="mt-1 text-sm text-white/70">
             {optionsForCurrentStep.length} {isFr ? "options disponibles" : "options available"}
             {isOptionalStep ? ` • ${isFr ? "Optionnel" : "Optional"}` : ""}
           </p>
@@ -560,7 +566,10 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
                   </div>
                   <span className="mt-2 block w-full truncate text-center text-sm font-medium text-foreground">{label}</span>
                   <span className="text-sm font-medium text-[var(--accent)]">
-                    ${Number(opt.price).toLocaleString()}
+                    ${optionEffectivePrice(opt).toLocaleString()}
+                    {(opt as { discount_percent?: number }).discount_percent > 0 && (
+                      <span className="ml-1.5 text-xs text-foreground/60 line-through">${Number(opt.price).toLocaleString()}</span>
+                    )}
                   </span>
                 </button>
               );
@@ -608,7 +617,7 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
               type="button"
               onClick={() => setStepIndex((s) => Math.max(0, s - 1))}
               disabled={stepIndex === 0}
-              className="rounded-lg border border-foreground/25 bg-transparent px-5 py-2.5 text-sm font-medium text-foreground/80 transition hover:bg-foreground/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="rounded-lg border border-white/30 bg-transparent px-5 py-2.5 text-sm font-medium text-white/90 transition hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               ← {isFr ? "Retour" : "Back"}
             </button>
@@ -649,7 +658,12 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
             </div>
             <div className="text-left">
               <p className="text-xs font-medium uppercase tracking-wider text-foreground/70">TOTAL</p>
-              <p className="text-xl font-bold text-foreground">${total.toLocaleString()}</p>
+              <p className="text-xl font-bold text-foreground">
+                ${displayTotal.toLocaleString()}
+                {discountPercent > 0 && (
+                  <span className="ml-2 text-sm font-normal text-foreground/60 line-through">${total.toLocaleString()}</span>
+                )}
+              </p>
             </div>
           </div>
           <svg
@@ -678,9 +692,21 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
                 ))}
               </ul>
             )}
+            {discountPercent > 0 && (
+              <>
+                <div className="mt-2 flex justify-between border-t border-foreground/15 pt-2 text-sm text-foreground/80">
+                  <span>{isFr ? "Sous-total" : "Subtotal"}</span>
+                  <span>${total.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm text-[var(--accent)]">
+                  <span>{isFr ? "Réduction" : "Discount"} ({discountPercent}%)</span>
+                  <span>-${(total - displayTotal).toLocaleString()}</span>
+                </div>
+              </>
+            )}
             <div className="mt-2 flex justify-between border-t border-foreground/20 pt-2 text-sm font-bold text-foreground">
               <span>{isFr ? "Total" : "Total"}</span>
-              <span>${total.toLocaleString()}</span>
+              <span>${displayTotal.toLocaleString()}</span>
             </div>
             <button
               type="button"

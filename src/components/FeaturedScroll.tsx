@@ -48,7 +48,7 @@ export default function FeaturedScroll({
         ];
 
   return (
-    <section className="w-full bg-[var(--background)] text-foreground">
+    <section className="-mt-28 md:-mt-32 w-full pt-28 md:pt-32 bg-[var(--background)] text-foreground">
       {items.map((slide, index) => {
         const primary = slide.image_url || fallbackImage;
         const secondary = slide.image_url_secondary || primary || fallbackImage;
@@ -73,6 +73,7 @@ export default function FeaturedScroll({
             purchaseUrl={purchaseUrl}
             showWelcome={index === 0}
             locale={locale}
+            extendUnderNav={index === 0}
           />
         );
       })}
@@ -96,6 +97,7 @@ function FeaturedSlideMorph({
   purchaseUrl,
   showWelcome,
   locale,
+  extendUnderNav,
 }: {
   primarySrc: string;
   secondarySrc: string;
@@ -109,6 +111,7 @@ function FeaturedSlideMorph({
   purchaseUrl: string | null;
   showWelcome: boolean;
   locale: string;
+  extendUnderNav?: boolean;
 }) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
@@ -151,7 +154,7 @@ function FeaturedSlideMorph({
   return (
     <div
       ref={sectionRef}
-      className="relative w-full overflow-hidden"
+      className={`relative w-full overflow-hidden ${extendUnderNav ? "-mt-28 md:-mt-32 pt-28 md:pt-32" : ""}`}
       style={{ minHeight: `${SECTION_HEIGHT_VH}vh` }}
     >
       {/* First image */}

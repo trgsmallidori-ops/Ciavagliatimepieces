@@ -74,7 +74,7 @@ export default async function LocaleLayout({
   const webJson = websiteJsonLd(locale);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[var(--logo-green)]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

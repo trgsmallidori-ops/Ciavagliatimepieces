@@ -4,7 +4,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 const locales = ["en", "fr"] as const;
 const defaultLocale = "en";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const supabaseResponse = await updateSession(request);
   const { pathname } = request.nextUrl;
 

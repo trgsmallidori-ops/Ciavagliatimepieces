@@ -4,7 +4,7 @@ export default function Footer({ locale }: { locale: string }) {
   const isFr = locale === "fr";
 
   return (
-    <footer className="mt-20 border-t border-white/20 bg-[var(--logo-green)] px-6 py-16 text-white">
+    <footer className="mt-32 border-t border-white/20 bg-[var(--logo-green)] px-6 py-16 text-white md:mt-40">
       <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-4">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-white/60">Ciavaglia Timepieces</p>

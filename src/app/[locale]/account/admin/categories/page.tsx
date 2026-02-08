@@ -9,6 +9,7 @@ import {
   createWatchCategory,
   updateWatchCategory,
   deleteWatchCategory,
+  reorderWatchCategory,
   updateProduct,
 } from "../actions";
 import type { WatchCategoryRow } from "../actions";
@@ -34,6 +35,7 @@ export default function AdminCategoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
   const [categoryForm, setCategoryForm] = useState<{ slug: string; label_en: string; label_fr: string }>({
     slug: "",
     label_en: "",
@@ -102,6 +104,19 @@ export default function AdminCategoriesPage() {
       setWatchCategories(await getAdminWatchCategories());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete");
+    }
+  };
+
+  const handleReorder = async (categoryId: string, direction: "up" | "down") => {
+    setError(null);
+    setReorderingId(categoryId);
+    try {
+      await reorderWatchCategory(categoryId, direction);
+      setWatchCategories(await getAdminWatchCategories());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to reorder");
+    } finally {
+      setReorderingId(null);
     }
   };
 
@@ -204,7 +219,7 @@ export default function AdminCategoriesPage() {
       )}
 
       <div className="space-y-6">
-        {watchCategories.map((cat) => (
+        {watchCategories.map((cat, index) => (
           <ScrollReveal key={cat.id}>
             <div className="rounded-[28px] border border-white/70 bg-white/80 p-6 text-foreground shadow-[0_24px_90px_rgba(15,20,23,0.1)]">
               {editingCategoryId === cat.id ? (
@@ -257,7 +272,26 @@ export default function AdminCategoriesPage() {
                       </select>
                     </div>
                   </div>
-                  <div className="flex shrink-0 gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <span className="text-xs text-foreground/50">{isFr ? "Ordre nav" : "Nav order"}:</span>
+                    <button
+                      type="button"
+                      title={isFr ? "Monter" : "Move up"}
+                      disabled={index === 0 || reorderingId === cat.id}
+                      onClick={() => handleReorder(cat.id, "up")}
+                      className="btn-hover rounded-full border border-foreground/20 px-3 py-1.5 text-xs uppercase tracking-[0.2em] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      title={isFr ? "Descendre" : "Move down"}
+                      disabled={index === watchCategories.length - 1 || reorderingId === cat.id}
+                      onClick={() => handleReorder(cat.id, "down")}
+                      className="btn-hover rounded-full border border-foreground/20 px-3 py-1.5 text-xs uppercase tracking-[0.2em] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      ↓
+                    </button>
                     <button type="button" onClick={() => startEditCategory(cat)} className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
                       {isFr ? "Modifier" : "Edit"}
                     </button>
