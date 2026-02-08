@@ -20,7 +20,8 @@ type CurrencyContextValue = {
   currency: CurrencyCode;
   setCurrency: (c: CurrencyCode) => void;
   usdToCad: number | null;
-  formatPrice: (amountUsd: number) => string;
+  /** Format price for display. Pass amount in CAD (store currency). */
+  formatPrice: (amountCad: number) => string;
 };
 
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
@@ -39,7 +40,7 @@ export function CurrencyProvider({
   const [usdToCad, setUsdToCad] = useState<number | null>(initialUsdToCad);
 
   useEffect(() => {
-    if (currency !== "CAD") return;
+    if (currency !== "USD") return;
     if (initialUsdToCad != null) {
       setUsdToCad(initialUsdToCad);
       return;
@@ -68,9 +69,9 @@ export function CurrencyProvider({
   );
 
   const formatPrice = useCallback(
-    (amountUsd: number) => {
-      const rate = currency === "CAD" ? (usdToCad ?? 1.36) : 1;
-      return formatPriceLib(amountUsd, currency, rate);
+    (amountCad: number) => {
+      const rate = currency === "USD" ? (usdToCad ?? 1.36) : 1.36;
+      return formatPriceLib(amountCad, currency, rate);
     },
     [currency, usdToCad]
   );

@@ -773,7 +773,7 @@ export default function AdminConfiguratorPage() {
                       return effective.toLocaleString();
                     })()}
                     {((opt as { discount_percent?: number }).discount_percent ?? 0) > 0 && (
-                      <span className="ml-1.5 text-xs text-foreground/50 line-through">${Number(opt.price).toLocaleString()}</span>
+                      <span className="ml-1.5 text-xs text-foreground/50 line-through">C${Number(opt.price).toLocaleString()}</span>
                     )}
                   </span>
                   {currentStepKey !== "function" && opt.parent_option_id && (
@@ -919,7 +919,7 @@ export default function AdminConfiguratorPage() {
                                 />
                               </div>
                               <div>
-                                <label className="text-xs uppercase text-foreground/60">Price ($)</label>
+                                <label className="text-xs uppercase text-foreground/60">Price (CAD)</label>
                                 <input
                                   type="number"
                                   value={addonForm.price}
@@ -963,7 +963,7 @@ export default function AdminConfiguratorPage() {
                             <div>
                               <p className="font-medium">{addon.label_en}</p>
                               <p className="text-sm text-foreground/60">
-                                ${addon.price} · {(addonsWithOptions[addon.id] ?? []).length} {isFr ? "couleurs" : "colours"}
+                                C${addon.price} · {(addonsWithOptions[addon.id] ?? []).length} {isFr ? "couleurs" : "colours"}
                               </p>
                             </div>
                             <button
@@ -1036,7 +1036,7 @@ export default function AdminConfiguratorPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium uppercase tracking-wider text-foreground">Price ($)</label>
+                  <label className="text-xs font-medium uppercase tracking-wider text-foreground">Price (CAD)</label>
                   <input
                     type="number"
                     value={optionForm.price}

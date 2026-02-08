@@ -257,7 +257,7 @@ export default function AdminProductsPage() {
                 />
               </div>
               <div>
-                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Prix ($)" : "Price ($)"}</label>
+                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Prix (CAD)" : "Price (CAD)"}</label>
                 <input
                   type="number"
                   min={0}
@@ -267,7 +267,7 @@ export default function AdminProductsPage() {
                 />
               </div>
               <div>
-                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Prix d'origine ($)" : "Original price ($)"}</label>
+                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Prix d'origine (CAD)" : "Original price (CAD)"}</label>
                 <p className="mt-1 text-xs text-foreground/50">{isFr ? "Optionnel. Si rempli et > prix, affiche une réduction." : "Optional. If set and higher than price, shows a discount."}</p>
                 <input
                   type="number"
@@ -461,11 +461,11 @@ export default function AdminProductsPage() {
                         <input value={formData.name ?? ""} onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))} className="mt-1 w-full rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
                       </div>
                       <div>
-                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Price ($)</label>
+                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Price (CAD)</label>
                         <input type="number" min={0} value={formData.price ?? ""} onChange={(e) => setFormData((prev) => ({ ...prev, price: Number(e.target.value) }))} className="mt-1 w-full rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
                       </div>
                       <div>
-                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">{isFr ? "Prix d'origine ($)" : "Original price ($)"}</label>
+                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">{isFr ? "Prix d'origine (CAD)" : "Original price (CAD)"}</label>
                         <input type="number" min={0} value={formData.original_price ?? ""} onChange={(e) => setFormData((prev) => ({ ...prev, original_price: e.target.value === "" ? undefined : Number(e.target.value) }))} placeholder="—" className="mt-1 w-full rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
                       </div>
                       <div className="sm:col-span-2">
@@ -575,9 +575,9 @@ export default function AdminProductsPage() {
                       <h3 className="text-xl font-semibold">{p.name}</h3>
                       <p className="mt-1 text-sm text-foreground/70">{p.description}</p>
                       <p className="mt-2 text-lg font-semibold">
-                        ${Number(p.price).toLocaleString()}
+                        C${Number(p.price).toLocaleString()}
                         {p.original_price != null && Number(p.original_price) > Number(p.price) && (
-                          <span className="ml-2 text-sm font-normal text-foreground/60 line-through">${Number(p.original_price).toLocaleString()}</span>
+                          <span className="ml-2 text-sm font-normal text-foreground/60 line-through">C${Number(p.original_price).toLocaleString()}</span>
                         )}
                       </p>
                       <p className="mt-1 text-xs text-foreground/60">

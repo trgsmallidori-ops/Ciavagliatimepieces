@@ -53,7 +53,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
     cookies(),
   ]);
   const currency = parseCurrency(cookieStore.get(CURRENCY_COOKIE_NAME)?.value);
-  const usdToCad = currency === "CAD" ? await getUsdToCadRate() : 1;
+  const usdToCad = currency === "USD" ? await getUsdToCadRate() : 1.36;
 
   const heroFallbackForGiveaway = heroFallbackImage;
   const featuredSlides =

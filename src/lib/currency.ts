@@ -5,7 +5,8 @@ export type CurrencyCode = "USD" | "CAD";
 
 export const CURRENCIES: CurrencyCode[] = ["USD", "CAD"];
 
-const DEFAULT_CURRENCY: CurrencyCode = "USD";
+/** Main/store currency: all product and configurator prices are stored in CAD. */
+const DEFAULT_CURRENCY: CurrencyCode = "CAD";
 
 /** Parse currency from cookie value. */
 export function parseCurrency(value: string | undefined): CurrencyCode {
@@ -46,15 +47,15 @@ export async function getUsdToCadRate(): Promise<number> {
   return fallback;
 }
 
-/** Format a price in USD for display; if currency is CAD, convert using rate. */
+/** Format a price for display. Amount is always in CAD (store currency). USD uses rate to convert. */
 export function formatPrice(
-  amountUsd: number,
+  amountCad: number,
   currency: CurrencyCode,
   usdToCad: number
 ): string {
   if (currency === "CAD") {
-    const cad = amountUsd * usdToCad;
-    return `C$${cad.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `C$${amountCad.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
+  const amountUsd = amountCad / usdToCad;
   return `$${amountUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

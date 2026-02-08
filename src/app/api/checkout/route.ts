@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
       lineItems.push({
         quantity: 1,
         price_data: {
-          currency: "usd",
+          currency: "cad",
           product_data: {
             name: summary,
             description: partsDescription,
@@ -306,7 +306,7 @@ export async function POST(request: NextRequest) {
       lineItems.push({
         quantity: 1,
         price_data: {
-          currency: "usd",
+          currency: "cad",
           product_data: { name: summary },
           unit_amount: Math.round(amount * 100),
         },
@@ -342,7 +342,7 @@ export async function POST(request: NextRequest) {
           lineItems.push({
             quantity: qty,
             price_data: {
-              currency: "usd",
+              currency: "cad",
               product_data: { name: row.title ?? "Custom Build" },
               unit_amount: Math.round(unitPrice * 100),
             },
@@ -369,7 +369,7 @@ export async function POST(request: NextRequest) {
         lineItems.push({
           quantity: qty,
           price_data: {
-            currency: "usd",
+            currency: "cad",
             product_data: { name: row.title ?? product.name },
             unit_amount: Math.round(unitPrice * 100),
           },
@@ -408,7 +408,7 @@ export async function POST(request: NextRequest) {
               lineItems.push({
                 quantity: qty,
                 price_data: {
-                  currency: "usd",
+                  currency: "cad",
                   product_data: { name: row.title ?? "Custom Build" },
                   unit_amount: Math.round(serverPrice * 100),
                 },
@@ -418,7 +418,7 @@ export async function POST(request: NextRequest) {
             lineItems.push({
               quantity: qty,
               price_data: {
-                currency: "usd",
+                currency: "cad",
                 product_data: { name: row.title ?? "Custom Build" },
                 unit_amount: Math.round(unitPrice * 100),
               },
@@ -445,7 +445,7 @@ export async function POST(request: NextRequest) {
         lineItems.push({
           quantity: qty,
           price_data: {
-            currency: "usd",
+            currency: "cad",
             product_data: { name: row.title ?? product.name },
             unit_amount: Math.round(unitPrice * 100),
           },
@@ -461,16 +461,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Nothing to checkout" }, { status: 400 });
     }
 
-    // Apply currency: if CAD, convert amounts and set currency to cad
+    // All line amounts are in CAD. If user chose USD, convert to USD.
     let finalLineItems = lineItems;
-    if (currency === "cad") {
+    if (currency === "usd") {
       const rate = await getUsdToCadRate();
       finalLineItems = lineItems.map((item) => ({
         ...item,
         price_data: {
           ...item.price_data,
-          currency: "cad",
-          unit_amount: Math.round(item.price_data.unit_amount * rate),
+          currency: "usd",
+          unit_amount: Math.round(item.price_data.unit_amount / rate),
         },
       }));
     }
