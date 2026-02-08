@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { useCurrency } from "@/components/CurrencyContext";
 import {
   getGuestCart,
   setGuestCart,
@@ -36,6 +37,7 @@ type CartLabels = {
 export default function CartView({ locale, labels }: { locale: string; labels: CartLabels }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { currency, formatPrice } = useCurrency();
   const activeLocale = locale || pathname.split("/").filter(Boolean)[0] || "en";
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +128,7 @@ export default function CartView({ locale, labels }: { locale: string; labels: C
       const body: Record<string, unknown> = {
         locale: activeLocale,
         type: "cart",
+        currency,
       };
       if (user) {
         body.userId = user.id;
@@ -200,7 +203,7 @@ export default function CartView({ locale, labels }: { locale: string; labels: C
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground">{item.title}</p>
-                    <p className="text-sm text-foreground/70">${Number(item.price).toLocaleString()} each</p>
+                    <p className="text-sm text-foreground/70">{formatPrice(Number(item.price))} each</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -221,7 +224,7 @@ export default function CartView({ locale, labels }: { locale: string; labels: C
                       +
                     </button>
                   </div>
-                  <p className="w-20 text-right font-semibold">${(item.price * item.quantity).toLocaleString()}</p>
+                  <p className="w-20 text-right font-semibold">{formatPrice(item.price * item.quantity)}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     {item.product_id.startsWith("custom-") && !item.id.startsWith("guest-") && (
                       <Link
@@ -246,7 +249,7 @@ export default function CartView({ locale, labels }: { locale: string; labels: C
             <div className="mt-10 flex flex-col items-end gap-4 rounded-[22px] border-2 border-foreground/15 bg-white p-6 text-foreground">
               {error && <p className="w-full text-sm text-red-600">{error}</p>}
               <p className="text-lg font-semibold">
-                {labels.subtotal}: ${subtotal.toLocaleString()}
+                {labels.subtotal}: {formatPrice(subtotal)}
               </p>
               <button
                 type="button"

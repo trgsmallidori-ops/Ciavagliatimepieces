@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCurrency } from "@/components/CurrencyContext";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { getPublicConfiguratorData } from "@/app/[locale]/account/admin/actions";
 import { addGuestCartItem } from "@/lib/guest-cart";
@@ -21,6 +22,7 @@ type ConfigShape = {
 export default function Configurator({ locale, editCartItemId }: { locale: string; editCartItemId?: string }) {
   const isFr = locale === "fr";
   const router = useRouter();
+  const { currency, formatPrice } = useCurrency();
   const [configData, setConfigData] = useState<Awaited<ReturnType<typeof getPublicConfiguratorData>>>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [editLoadDone, setEditLoadDone] = useState(false);
@@ -234,6 +236,7 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
           locale,
           type: "custom",
           userId: user?.id ?? null,
+          currency,
           configuration: {
             steps: stepsPayload,
             extras,
@@ -566,9 +569,9 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
                   </div>
                   <span className="mt-2 block w-full truncate text-center text-sm font-medium text-foreground">{label}</span>
                   <span className="text-sm font-medium text-[var(--accent)]">
-                    ${optionEffectivePrice(opt).toLocaleString()}
+                    {formatPrice(optionEffectivePrice(opt))}
                     {((opt as { discount_percent?: number }).discount_percent ?? 0) > 0 && (
-                      <span className="ml-1.5 text-xs text-foreground/60 line-through">${Number(opt.price).toLocaleString()}</span>
+                      <span className="ml-1.5 text-xs text-foreground/60 line-through">{formatPrice(Number(opt.price))}</span>
                     )}
                   </span>
                 </button>
@@ -597,7 +600,7 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
                           : "Available for selected case options."}
                       </p>
                       <span className="mt-1 block text-sm font-medium text-[var(--accent)]">
-                        +${addon.price.toLocaleString()}
+                        +{formatPrice(addon.price)}
                       </span>
                     </div>
                   </label>
@@ -659,9 +662,9 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
             <div className="text-left">
               <p className="text-xs font-medium uppercase tracking-wider text-foreground/70">TOTAL</p>
               <p className="text-xl font-bold text-foreground">
-                ${displayTotal.toLocaleString()}
+                {formatPrice(displayTotal)}
                 {discountPercent > 0 && (
-                  <span className="ml-2 text-sm font-normal text-foreground/60 line-through">${total.toLocaleString()}</span>
+                  <span className="ml-2 text-sm font-normal text-foreground/60 line-through">{formatPrice(total)}</span>
                 )}
               </p>
             </div>
@@ -687,7 +690,7 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
                 {totalLineItems.map((item, idx) => (
                   <li key={idx} className="flex justify-between gap-2 border-b border-foreground/10 pb-1.5 last:border-0">
                     <span className="truncate text-foreground/90">{item.label}</span>
-                    <span className="shrink-0 font-medium text-foreground">${item.price.toLocaleString()}</span>
+                    <span className="shrink-0 font-medium text-foreground">{formatPrice(item.price)}</span>
                   </li>
                 ))}
               </ul>
@@ -696,17 +699,17 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
               <>
                 <div className="mt-2 flex justify-between border-t border-foreground/15 pt-2 text-sm text-foreground/80">
                   <span>{isFr ? "Sous-total" : "Subtotal"}</span>
-                  <span>${total.toLocaleString()}</span>
+                  <span>{formatPrice(total)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-[var(--accent)]">
                   <span>{isFr ? "Réduction" : "Discount"} ({discountPercent}%)</span>
-                  <span>-${(total - displayTotal).toLocaleString()}</span>
+                  <span>-{formatPrice(total - displayTotal)}</span>
                 </div>
               </>
             )}
             <div className="mt-2 flex justify-between border-t border-foreground/20 pt-2 text-sm font-bold text-foreground">
               <span>{isFr ? "Total" : "Total"}</span>
-              <span>${displayTotal.toLocaleString()}</span>
+              <span>{formatPrice(displayTotal)}</span>
             </div>
             <button
               type="button"

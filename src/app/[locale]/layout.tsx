@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import CartToast from "@/components/CartToast";
+import CurrencyProvider from "@/components/CurrencyContext";
 import Footer from "@/components/Footer";
 import NavBar from "@/components/NavBar";
 import { isAdmin } from "@/lib/admin";
+import { parseCurrency, CURRENCY_COOKIE_NAME } from "@/lib/currency";
 import { getDictionary, Locale, locales } from "@/lib/i18n";
 import { createAuthServerClient } from "@/lib/supabase/server";
 import { getWatchCategories } from "@/lib/watch-categories";
@@ -69,12 +72,15 @@ export default async function LocaleLayout({
   const { data: { user } } = await supabase.auth.getUser();
   const isAdminUser = isAdmin(user?.id);
   const watchCategories = await getWatchCategories();
+  const cookieStore = await cookies();
+  const currency = parseCurrency(cookieStore.get(CURRENCY_COOKIE_NAME)?.value);
 
   const orgJson = organizationJsonLd(locale);
   const webJson = websiteJsonLd(locale);
 
   return (
     <div className="min-h-screen bg-[var(--logo-green)]">
+      <CurrencyProvider initialCurrency={currency} initialUsdToCad={null}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -91,6 +97,7 @@ export default async function LocaleLayout({
       <main className="pt-28 md:pt-32 bg-[var(--logo-green)] text-white" id="main-content">{children}</main>
       <Footer locale={locale} />
       <CartToast locale={locale} />
+      </CurrencyProvider>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import ScrollReveal from "@/components/ScrollReveal";
+import { useCurrency } from "@/components/CurrencyContext";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { addGuestCartItem } from "@/lib/guest-cart";
 
@@ -21,6 +22,7 @@ type Watch = {
 export default function ShopGrid({ watches, locale }: { watches: Watch[]; locale: string }) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const pathname = usePathname();
+  const { currency, formatPrice } = useCurrency();
   const activeLocale = locale || pathname.split("/").filter(Boolean)[0] || "en";
   const isFr = activeLocale === "fr";
 
@@ -86,6 +88,7 @@ export default function ShopGrid({ watches, locale }: { watches: Watch[]; locale
           type: "built",
           productId: watch.id,
           userId: user?.id ?? null,
+          currency,
         }),
       });
 
@@ -129,11 +132,11 @@ export default function ShopGrid({ watches, locale }: { watches: Watch[]; locale
                   <span className="rounded bg-red-600/90 px-2 py-0.5 text-xs font-medium text-white">
                     {isFr ? "Réduction" : "Discount"} {Math.round((1 - watch.price / watch.original_price) * 100)}%
                   </span>
-                  <span className="text-lg font-semibold text-foreground/70 line-through">${watch.original_price.toLocaleString()}</span>
-                  <span className="text-lg font-semibold text-[var(--accent)]">${watch.price.toLocaleString()}</span>
+                  <span className="text-lg font-semibold text-foreground/70 line-through">{formatPrice(watch.original_price)}</span>
+                  <span className="text-lg font-semibold text-[var(--accent)]">{formatPrice(watch.price)}</span>
                 </>
               ) : (
-                <span className="text-lg font-semibold">${watch.price.toLocaleString()}</span>
+                <span className="text-lg font-semibold">{formatPrice(watch.price)}</span>
               )}
             </div>
             <div className="mt-6 flex flex-wrap gap-3">

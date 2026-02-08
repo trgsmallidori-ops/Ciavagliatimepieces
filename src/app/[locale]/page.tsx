@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import Parallax from "@/components/Parallax";
@@ -6,6 +7,7 @@ import ScrollReveal from "@/components/ScrollReveal";
 import FeaturedScroll from "@/components/FeaturedScroll";
 import StorySection from "@/components/StorySection";
 import { getDictionary, Locale } from "@/lib/i18n";
+import { parseCurrency, formatPrice, getUsdToCadRate, CURRENCY_COOKIE_NAME } from "@/lib/currency";
 import { getWatchCategories } from "@/lib/watch-categories";
 import { getFeaturedSlides, getActiveGiveaway } from "@/app/[locale]/account/admin/actions";
 import { builtWatches } from "@/data/watches";
@@ -44,11 +46,14 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
   const hero = dictionary.hero;
   const home = dictionary.home;
   const isFr = locale === "fr";
-  const [watchCategories, featuredSlidesRaw, activeGiveaway] = await Promise.all([
+  const [watchCategories, featuredSlidesRaw, activeGiveaway, cookieStore] = await Promise.all([
     getWatchCategories(),
     getFeaturedSlides(),
     getActiveGiveaway(),
+    cookies(),
   ]);
+  const currency = parseCurrency(cookieStore.get(CURRENCY_COOKIE_NAME)?.value);
+  const usdToCad = currency === "CAD" ? await getUsdToCadRate() : 1;
 
   const heroFallbackForGiveaway = heroFallbackImage;
   const featuredSlides =
@@ -178,7 +183,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
                     <h3 className="text-xl">{watch.name}</h3>
                     <p className="mt-1 text-sm text-foreground/70 line-clamp-2">{watch.description}</p>
                     <p className="mt-3 text-sm font-medium uppercase tracking-[0.15em] text-foreground">
-                      ${watch.price.toLocaleString()}
+                      {formatPrice(watch.price, currency, usdToCad)}
                     </p>
                   </div>
                 </Link>

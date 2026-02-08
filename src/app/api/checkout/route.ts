@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { getUsdToCadRate } from "@/lib/currency";
 import { getSiteUrl, getStripe } from "@/lib/stripe";
 
 /** Build a human-readable list of parts for a custom build (for Stripe product description).
@@ -158,6 +159,7 @@ export async function POST(request: NextRequest) {
     locale?: string;
     type?: string;
     userId?: string | null;
+    currency?: "USD" | "CAD";
     guestCart?: Array<{
       product_id: string;
       quantity: number;
@@ -170,6 +172,7 @@ export async function POST(request: NextRequest) {
   };
   const body = payload as CheckoutPayload;
   const { locale, type, userId } = body;
+  const currency = body.currency === "CAD" ? "cad" : "usd";
 
   if (!locale || typeof locale !== "string") {
     return NextResponse.json({ error: "Missing locale" }, { status: 400 });
@@ -458,13 +461,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Nothing to checkout" }, { status: 400 });
     }
 
-    // Stripe minimum is $0.50 USD per transaction
+    // Apply currency: if CAD, convert amounts and set currency to cad
+    let finalLineItems = lineItems;
+    if (currency === "cad") {
+      const rate = await getUsdToCadRate();
+      finalLineItems = lineItems.map((item) => ({
+        ...item,
+        price_data: {
+          ...item.price_data,
+          currency: "cad",
+          unit_amount: Math.round(item.price_data.unit_amount * rate),
+        },
+      }));
+    }
+
+    // Stripe minimum is 0.50 in the selected currency
     const STRIPE_MIN_CENTS = 50;
-    const totalCents = lineItems.reduce((sum, item) => sum + item.quantity * item.price_data.unit_amount, 0);
+    const totalCents = finalLineItems.reduce(
+      (sum, item) => sum + item.quantity * item.price_data.unit_amount,
+      0
+    );
     if (totalCents < STRIPE_MIN_CENTS) {
+      const symbol = currency === "cad" ? "C$" : "$";
+      const totalFormatted = (totalCents / 100).toFixed(2);
       return NextResponse.json(
         {
-          error: `Minimum order amount is $0.50 USD. Your total is $${(totalCents / 100).toFixed(2)}. Please add more items or use a product with a higher price.`,
+          error: `Minimum order amount is ${symbol}0.50. Your total is ${symbol}${totalFormatted}. Please add more items or use a product with a higher price.`,
         },
         { status: 400 }
       );
@@ -495,7 +517,7 @@ export async function POST(request: NextRequest) {
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      line_items: lineItems,
+      line_items: finalLineItems,
       success_url: `${siteUrl}/${localeSegment}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/${localeSegment}/checkout/cancel`,
       metadata,

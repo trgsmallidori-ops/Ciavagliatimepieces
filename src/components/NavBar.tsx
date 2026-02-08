@@ -4,7 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useCurrency } from "@/components/CurrencyContext";
 import { localeLabels, locales } from "@/lib/i18n";
+import { CURRENCIES, type CurrencyCode } from "@/lib/currency";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { getGuestCartCount } from "@/lib/guest-cart";
 import type { User } from "@supabase/supabase-js";
@@ -261,6 +263,7 @@ export default function NavBar({
               </Link>
             </>
           )}
+          <CurrencySwitcher />
           <LocaleSwitcher currentLocale={activeLocale} />
           <Link
             href={`/${activeLocale}/cart`}
@@ -387,6 +390,7 @@ export default function NavBar({
               </span>
             </Link>
             <div className="h-px bg-white/20" />
+            <CurrencySwitcher />
             <LocaleSwitcher currentLocale={activeLocale} />
           </div>
         </div>
@@ -433,6 +437,25 @@ export default function NavBar({
       )}
     </header>
     </>
+  );
+}
+
+function CurrencySwitcher() {
+  const { currency, setCurrency } = useCurrency();
+
+  return (
+    <div className="flex items-center gap-2 rounded-full border border-white/40 bg-white/10 px-2 py-1 text-xs uppercase tracking-[0.2em]">
+      {CURRENCIES.map((c) => (
+        <button
+          key={c}
+          type="button"
+          onClick={() => setCurrency(c as CurrencyCode)}
+          className={`px-2 py-1 transition ${currency === c ? "text-white" : "text-white/50 hover:text-white/80"}`}
+        >
+          {c}
+        </button>
+      ))}
+    </div>
   );
 }
 

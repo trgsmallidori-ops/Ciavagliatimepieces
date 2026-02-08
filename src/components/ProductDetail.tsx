@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useCurrency } from "@/components/CurrencyContext";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { addGuestCartItem } from "@/lib/guest-cart";
 
@@ -26,6 +27,7 @@ type ProductDetailProps = {
 
 export default function ProductDetail({ product, images, locale, categoryLabel }: ProductDetailProps) {
   const pathname = usePathname();
+  const { currency, formatPrice } = useCurrency();
   const activeLocale = locale || pathname?.split("/").filter(Boolean)[0] || "en";
   const isFr = activeLocale === "fr";
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -146,6 +148,7 @@ export default function ProductDetail({ product, images, locale, categoryLabel }
           type: "built",
           productId: product.id,
           userId: user?.id ?? null,
+          currency,
         }),
       });
 
@@ -306,11 +309,11 @@ export default function ProductDetail({ product, images, locale, categoryLabel }
                 <span className="rounded bg-red-600/90 px-2.5 py-1 text-sm font-medium text-white">
                   {isFr ? "Réduction" : "Discount"} {Math.round((1 - product.price / product.original_price) * 100)}%
                 </span>
-                <span className="text-xl font-medium text-white/60 line-through">${Number(product.original_price).toLocaleString()}</span>
-                <span className="text-2xl font-semibold text-[var(--logo-gold)]">${Number(product.price).toLocaleString()}</span>
+                <span className="text-xl font-medium text-white/60 line-through">{formatPrice(Number(product.original_price))}</span>
+                <span className="text-2xl font-semibold text-[var(--logo-gold)]">{formatPrice(Number(product.price))}</span>
               </>
             ) : (
-              <p className="text-2xl font-semibold text-[var(--logo-gold)]">${Number(product.price).toLocaleString()}</p>
+              <p className="text-2xl font-semibold text-[var(--logo-gold)]">{formatPrice(Number(product.price))}</p>
             )}
           </div>
 
