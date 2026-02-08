@@ -129,16 +129,16 @@ export default async function CheckoutSuccess({
           )}
           <div className="mt-8 flex justify-center gap-4">
             <Link
-              href={`/${locale}/account/manage`}
+              href={`/${locale}`}
               className="rounded-full bg-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] text-white"
             >
-              {isFr ? "Voir le compte" : "View account"}
+              {isFr ? "Retour à l'accueil" : "Return Home"}
             </Link>
             <Link
               href={`/${locale}/shop`}
               className="rounded-full border border-foreground/30 px-6 py-3 text-xs uppercase tracking-[0.3em] text-foreground/70"
             >
-              {isFr ? "Continuer" : "Continue shopping"}
+              {isFr ? "Explorer les montres" : "Explore Watches"}
             </Link>
           </div>
         </div>
