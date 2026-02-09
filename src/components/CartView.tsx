@@ -205,19 +205,21 @@ export default function CartView({ locale, labels }: { locale: string; labels: C
                     <p className="font-medium text-foreground">{item.title}</p>
                     <p className="text-sm text-foreground/70">{formatPrice(Number(item.price))} each</p>
                     {item.configuration &&
-                      Array.isArray((item.configuration as { addons?: unknown[] }).addons) &&
-                      (item.configuration as { addons: { option_label_en?: string; option_label_fr?: string; price?: number }[] }).addons.length > 0 && (
-                        <ul className="mt-1 space-y-0.5 text-xs text-foreground/60">
-                          {(item.configuration as { addons: { option_label_en?: string; option_label_fr?: string; price?: number }[] }).addons.map((a, i) => {
-                            const label = activeLocale === "fr" ? (a as { option_label_fr?: string }).option_label_fr : (a as { option_label_en?: string }).option_label_en;
-                            return (
-                              <li key={i}>
-                                + {label ?? (a as { option_label_en?: string }).option_label_en} ({formatPrice(Number((a as { price?: number }).price ?? 0))})
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
+                    Array.isArray((item.configuration as { addons?: unknown[] }).addons) &&
+                    (item.configuration as { addons: { option_label_en?: string; option_label_fr?: string; price?: number }[] }).addons.length > 0
+                      ? (
+                          <ul className="mt-1 space-y-0.5 text-xs text-foreground/60">
+                            {(item.configuration as { addons: { option_label_en?: string; option_label_fr?: string; price?: number }[] }).addons.map((a, i) => {
+                              const label = activeLocale === "fr" ? (a as { option_label_fr?: string }).option_label_fr : (a as { option_label_en?: string }).option_label_en;
+                              return (
+                                <li key={i}>
+                                  + {label ?? (a as { option_label_en?: string }).option_label_en} ({formatPrice(Number((a as { price?: number }).price ?? 0))})
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )
+                      : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <button

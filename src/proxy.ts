@@ -82,7 +82,7 @@ function checkRateLimit(request: NextRequest): NextResponse | null {
   return null;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const rateLimitResponse = checkRateLimit(request);
   if (rateLimitResponse) return rateLimitResponse;
 
