@@ -44,15 +44,10 @@ export default async function ProductPage({ params }: Props) {
 
   if (productError || !product) notFound();
 
-  const [{ data: productImages }, { data: productBands }, addonsWithOptions] = await Promise.all([
+  const [{ data: productImages }, addonsWithOptions] = await Promise.all([
     supabase
       .from("product_images")
       .select("id, url, sort_order")
-      .eq("product_id", id)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("product_bands")
-      .select("id, title, image_url, sort_order")
       .eq("product_id", id)
       .order("sort_order", { ascending: true }),
     getProductAddonsWithOptions(id),
@@ -85,20 +80,12 @@ export default async function ProductPage({ params }: Props) {
     sort_order: Number((row as { sort_order?: number }).sort_order ?? 0),
   }));
 
-  const bands = (productBands ?? []).map((row) => ({
-    id: (row as { id: string }).id,
-    title: (row as { title: string }).title,
-    image_url: (row as { image_url: string }).image_url,
-    sort_order: Number((row as { sort_order?: number }).sort_order ?? 0),
-  }));
-
   const addons = addonsWithOptions ?? [];
 
   return (
     <ProductDetail
       product={productData}
       images={images}
-      bands={bands}
       addons={addons}
       locale={locale}
       categoryLabel={categoryLabel}

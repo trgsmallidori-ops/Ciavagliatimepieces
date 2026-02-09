@@ -8,9 +8,6 @@ import {
   getAdminProducts,
   getAdminWatchCategories,
   getAdminProductImages,
-  getAdminProductBands,
-  addProductBand,
-  deleteProductBand,
   getAdminProductAddons,
   getProductAddonOptions,
   createProductAddon,
@@ -26,7 +23,7 @@ import {
   addProductImage,
   removeProductImage,
 } from "../actions";
-import type { WatchCategoryRow, ProductBandRow, ProductAddonRow, ProductAddonOptionRow } from "../actions";
+import type { WatchCategoryRow, ProductAddonRow, ProductAddonOptionRow } from "../actions";
 
 type Product = {
   id: string;
@@ -56,14 +53,10 @@ export default function AdminProductsPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [productImages, setProductImages] = useState<{ id: string; url: string; sort_order: number }[]>([]);
-  const [productBands, setProductBands] = useState<ProductBandRow[]>([]);
   const [productAddons, setProductAddons] = useState<ProductAddonRow[]>([]);
   const [addonOptionsByAddon, setAddonOptionsByAddon] = useState<Record<string, ProductAddonOptionRow[]>>({});
   const [newProductExtraImages, setNewProductExtraImages] = useState<string[]>([]);
   const [newProductExtraUrlInput, setNewProductExtraUrlInput] = useState("");
-  const [newBandTitle, setNewBandTitle] = useState("");
-  const [newBandImageUrl, setNewBandImageUrl] = useState("");
-  const [newBandImageUploading, setNewBandImageUploading] = useState(false);
   const [newAddonLabelEn, setNewAddonLabelEn] = useState("");
   const [newAddonLabelFr, setNewAddonLabelFr] = useState("");
   const [newAddonImageUrl, setNewAddonImageUrl] = useState("");
@@ -104,13 +97,11 @@ export default function AdminProductsPage() {
     });
     setError(null);
     try {
-      const [images, bands, addons] = await Promise.all([
+      const [images, addons] = await Promise.all([
         getAdminProductImages(p.id),
-        getAdminProductBands(p.id),
         getAdminProductAddons(p.id),
       ]);
       setProductImages(images.map((i) => ({ id: i.id, url: i.url, sort_order: i.sort_order })));
-      setProductBands(bands);
       setProductAddons(addons);
       const optionIdsByAddon: Record<string, ProductAddonOptionRow[]> = {};
       await Promise.all(
@@ -122,7 +113,6 @@ export default function AdminProductsPage() {
       setAddonOptionsByAddon(optionIdsByAddon);
     } catch {
       setProductImages([]);
-      setProductBands([]);
       setProductAddons([]);
       setAddonOptionsByAddon({});
     }
@@ -132,7 +122,6 @@ export default function AdminProductsPage() {
     setEditingId(null);
     setFormData({});
     setProductImages([]);
-    setProductBands([]);
     setProductAddons([]);
     setAddonOptionsByAddon({});
   };
@@ -227,30 +216,6 @@ export default function AdminProductsPage() {
       setProductImages((prev) => prev.filter((i) => i.id !== imageId));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to remove image");
-    }
-  };
-
-  const handleAddBand = async () => {
-    if (!editingId || !newBandTitle.trim() || !newBandImageUrl.trim()) return;
-    setError(null);
-    try {
-      await addProductBand(editingId, newBandTitle.trim(), newBandImageUrl.trim(), productBands.length);
-      const bands = await getAdminProductBands(editingId);
-      setProductBands(bands);
-      setNewBandTitle("");
-      setNewBandImageUrl("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add band");
-    }
-  };
-
-  const handleRemoveBand = async (bandId: string) => {
-    setError(null);
-    try {
-      await deleteProductBand(bandId);
-      setProductBands((prev) => prev.filter((b) => b.id !== bandId));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to remove band");
     }
   };
 
@@ -692,45 +657,6 @@ export default function AdminProductsPage() {
                                 <input name="extraImageUrl" type="url" placeholder={isFr ? "URL image" : "Image URL"} className="w-32 rounded border border-foreground/20 px-2 py-1 text-xs" />
                                 <button type="submit" className="rounded bg-foreground/10 px-2 py-1 text-xs">+</button>
                               </form>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {editingId && (
-                        <div className="sm:col-span-2">
-                          <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">{isFr ? "Bracelets / coloris" : "Watch bands / colorways"}</label>
-                          <p className="mt-1 text-xs text-foreground/50">{isFr ? "Les clients pourront choisir un bracelet ou coloris sur la page produit." : "Customers can pick a band or colorway on the product page."}</p>
-                          <div className="mt-2 flex flex-wrap gap-3">
-                            {productBands.map((band) => (
-                              <div key={band.id} className="flex items-center gap-2 rounded-xl border border-foreground/15 bg-white/50 p-2">
-                                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-foreground/5">
-                                  <img src={band.image_url} alt="" className="h-full w-full object-cover" />
-                                </div>
-                                <span className="min-w-0 max-w-[120px] truncate text-sm font-medium text-foreground">{band.title}</span>
-                                <button type="button" onClick={() => handleRemoveBand(band.id)} className="shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-xs text-white hover:bg-red-600">×</button>
-                              </div>
-                            ))}
-                            <div className="flex flex-col gap-1 rounded-xl border border-dashed border-foreground/20 bg-white/30 p-2">
-                              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="block max-w-[160px] text-xs file:mr-1 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground" disabled={newBandImageUploading} onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (!file || !editingId) return;
-                                setNewBandImageUploading(true);
-                                setError(null);
-                                try {
-                                  const fd = new FormData();
-                                  fd.append("image", file);
-                                  const { url } = await uploadProductImage(fd);
-                                  setNewBandImageUrl(url);
-                                } catch (err) {
-                                  setError(err instanceof Error ? err.message : "Upload failed");
-                                } finally {
-                                  setNewBandImageUploading(false);
-                                  e.target.value = "";
-                                }
-                              }} />
-                              <input value={newBandTitle} onChange={(e) => setNewBandTitle(e.target.value)} placeholder={isFr ? "Titre (ex: Cuir noir)" : "Title (e.g. Black leather)"} className="w-40 rounded border border-foreground/20 px-2 py-1 text-xs" />
-                              <input value={newBandImageUrl} onChange={(e) => setNewBandImageUrl(e.target.value)} placeholder={isFr ? "URL image" : "Image URL"} className="w-40 rounded border border-foreground/20 px-2 py-1 text-xs" />
-                              <button type="button" onClick={handleAddBand} disabled={!newBandTitle.trim() || !newBandImageUrl.trim() || newBandImageUploading} className="rounded bg-foreground/10 px-2 py-1 text-xs font-medium text-foreground disabled:opacity-50">{isFr ? "Ajouter" : "Add"}</button>
                             </div>
                           </div>
                         </div>

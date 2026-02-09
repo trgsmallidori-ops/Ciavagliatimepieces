@@ -8,13 +8,6 @@ import { useCurrency } from "@/components/CurrencyContext";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { addGuestCartItem } from "@/lib/guest-cart";
 
-type Band = {
-  id: string;
-  title: string;
-  image_url: string;
-  sort_order: number;
-};
-
 type ProductAddonOption = {
   id: string;
   addon_id: string;
@@ -55,19 +48,17 @@ type ProductDetailProps = {
     category: string | null;
   };
   images: { id: string; url: string; sort_order: number }[];
-  bands?: Band[];
   addons?: ProductAddon[];
   locale: string;
   categoryLabel?: string;
 };
 
-export default function ProductDetail({ product, images, bands = [], addons = [], locale, categoryLabel }: ProductDetailProps) {
+export default function ProductDetail({ product, images, addons = [], locale, categoryLabel }: ProductDetailProps) {
   const pathname = usePathname();
   const { currency, formatPrice } = useCurrency();
   const activeLocale = locale || pathname?.split("/").filter(Boolean)[0] || "en";
   const isFr = activeLocale === "fr";
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [selectedBand, setSelectedBand] = useState<Band | null>(bands.length > 0 ? bands[0]! : null);
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddonEntry[]>([]);
   const [selectedOptionByAddon, setSelectedOptionByAddon] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -139,23 +130,15 @@ export default function ProductDetail({ product, images, bands = [], addons = []
   }, [addons]);
 
   const mainImage = product.image ?? "/images/hero-1.svg";
-  const primaryImage = selectedBand ? selectedBand.image_url : mainImage;
-  const allImages =
-    selectedBand
-      ? [selectedBand.image_url, ...images.map((i) => i.url)]
-      : [mainImage, ...images.map((i) => i.url)];
-  const displayImage = allImages[selectedIndex] ?? primaryImage;
-  const cartImage = selectedBand ? selectedBand.image_url : mainImage;
-  const cartTitle = selectedBand ? `${product.name} — ${selectedBand.title}` : product.name;
+  const allImages = [mainImage, ...images.map((i) => i.url)];
+  const displayImage = allImages[selectedIndex] ?? mainImage;
+  const cartImage = mainImage;
+  const cartTitle = product.name;
   const addonsTotal = selectedAddons.reduce((sum, a) => sum + a.price, 0);
   const totalPrice = product.price + addonsTotal;
-  const bandConfig = selectedBand
-    ? { band_id: selectedBand.id, band_title: selectedBand.title, band_image_url: selectedBand.image_url }
-    : undefined;
   const configWithAddons =
     selectedAddons.length > 0
       ? {
-          ...bandConfig,
           addons: selectedAddons.map((a) => ({
             addon_id: a.addon_id,
             option_id: a.option_id,
@@ -164,7 +147,7 @@ export default function ProductDetail({ product, images, bands = [], addons = []
             price: a.price,
           })),
         }
-      : bandConfig;
+      : undefined;
   const isExternal = displayImage.startsWith("http");
 
   const handleAddAddon = (addon: ProductAddon) => {
@@ -256,7 +239,7 @@ export default function ProductDetail({ product, images, bands = [], addons = []
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (selectedBand || selectedAddons.length > 0) {
+      if (selectedAddons.length > 0) {
         if (!user) {
           addGuestCartItem({
             product_id: product.id,
@@ -365,41 +348,6 @@ export default function ProductDetail({ product, images, bands = [], addons = []
               {isFr ? "Cliquez pour agrandir" : "Click to enlarge"}
             </span>
           </button>
-          {bands.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium uppercase tracking-wider text-white/70">
-                {isFr ? "Bracelet / coloris" : "Band / colorway"}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {bands.map((band) => (
-                  <button
-                    key={band.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedBand(band);
-                      setSelectedIndex(0);
-                    }}
-                    className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition ${
-                      selectedBand?.id === band.id ? "border-[var(--logo-gold)] ring-2 ring-[var(--logo-gold)]/30" : "border-foreground/20 hover:border-foreground/40"
-                    }`}
-                    title={band.title}
-                  >
-                    <Image
-                      src={band.image_url}
-                      alt={band.title}
-                      fill
-                      className="object-cover"
-                      sizes="64px"
-                      unoptimized={band.image_url.startsWith("http") && !band.image_url.includes("supabase")}
-                    />
-                  </button>
-                ))}
-              </div>
-              {selectedBand && (
-                <p className="text-sm text-white/80">{selectedBand.title}</p>
-              )}
-            </div>
-          )}
           {allImages.length > 1 && (
             <div className="flex flex-wrap gap-2">
               {allImages.map((url, i) => (
