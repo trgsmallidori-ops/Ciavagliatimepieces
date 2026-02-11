@@ -15,6 +15,7 @@ type ProductAddonOption = {
   label_fr: string;
   price: number;
   sort_order: number;
+  image_url: string | null;
 };
 
 type ProductAddon = {
@@ -509,13 +510,13 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
                     >
                       <button
                         type="button"
-                        onClick={() => openLightboxWithImage(addon.image_url || "/images/hero-1.svg", addonLabel)}
+                        onClick={() => openLightboxWithImage((selectedOption?.image_url || addon.image_url) || "/images/hero-1.svg", addonLabel)}
                         className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-foreground/5 ring-2 ring-transparent transition hover:ring-foreground/30 focus:outline-none focus:ring-2 focus:ring-[var(--logo-gold)]"
                         title={isFr ? "Cliquez pour agrandir" : "Click to enlarge"}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={addon.image_url || "/images/hero-1.svg"}
+                          src={(selectedOption?.image_url || addon.image_url) || "/images/hero-1.svg"}
                           alt={addonLabel}
                           className="h-full w-full object-cover"
                         />

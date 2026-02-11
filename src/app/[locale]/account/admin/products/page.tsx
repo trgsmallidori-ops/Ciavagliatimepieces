@@ -61,7 +61,7 @@ export default function AdminProductsPage() {
   const [newAddonLabelFr, setNewAddonLabelFr] = useState("");
   const [newAddonImageUrl, setNewAddonImageUrl] = useState("");
   const [newAddonImageUploading, setNewAddonImageUploading] = useState(false);
-  const [newOptionByAddon, setNewOptionByAddon] = useState<Record<string, { label_en: string; label_fr: string; price: string }>>({});
+  const [newOptionByAddon, setNewOptionByAddon] = useState<Record<string, { label_en: string; label_fr: string; price: string; image_url: string }>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -266,10 +266,11 @@ export default function AdminProductsPage() {
         label_fr: entry.label_fr.trim() || entry.label_en.trim(),
         price: Number(entry.price) || 0,
         sort_order: (addonOptionsByAddon[addonId] ?? []).length,
+        image_url: entry.image_url?.trim() || null,
       });
       const opts = await getProductAddonOptions(addonId);
       setAddonOptionsByAddon((prev) => ({ ...prev, [addonId]: opts }));
-      setNewOptionByAddon((prev) => ({ ...prev, [addonId]: { label_en: "", label_fr: "", price: "" } }));
+      setNewOptionByAddon((prev) => ({ ...prev, [addonId]: { label_en: "", label_fr: "", price: "", image_url: "" } }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add option");
     }
@@ -684,10 +685,11 @@ export default function AdminProductsPage() {
                                       <button type="button" onClick={() => handleDeleteAddonOption(addon.id, opt.id)} className="text-red-600 hover:underline">×</button>
                                     </div>
                                   ))}
-                                  <div className="flex flex-wrap gap-2 pt-1">
-                                    <input value={newOptionByAddon[addon.id]?.label_en ?? ""} onChange={(e) => setNewOptionByAddon((prev) => ({ ...prev, [addon.id]: { ...(prev[addon.id] ?? { label_en: "", label_fr: "", price: "" }), label_en: e.target.value } }))} placeholder={isFr ? "Label (EN)" : "Label (EN)"} className="w-28 rounded border border-foreground/20 px-2 py-1 text-xs" />
-                                    <input value={newOptionByAddon[addon.id]?.label_fr ?? ""} onChange={(e) => setNewOptionByAddon((prev) => ({ ...prev, [addon.id]: { ...(prev[addon.id] ?? { label_en: "", label_fr: "", price: "" }), label_fr: e.target.value } }))} placeholder={isFr ? "Label (FR)" : "Label (FR)"} className="w-28 rounded border border-foreground/20 px-2 py-1 text-xs" />
-                                    <input type="number" min={0} value={newOptionByAddon[addon.id]?.price ?? ""} onChange={(e) => setNewOptionByAddon((prev) => ({ ...prev, [addon.id]: { ...(prev[addon.id] ?? { label_en: "", label_fr: "", price: "" }), price: e.target.value } }))} placeholder="Price" className="w-20 rounded border border-foreground/20 px-2 py-1 text-xs" />
+                                  <div className="flex flex-wrap items-end gap-2 pt-1">
+                                    <input value={newOptionByAddon[addon.id]?.label_en ?? ""} onChange={(e) => setNewOptionByAddon((prev) => ({ ...prev, [addon.id]: { ...(prev[addon.id] ?? { label_en: "", label_fr: "", price: "", image_url: "" }), label_en: e.target.value } }))} placeholder={isFr ? "Label (EN)" : "Label (EN)"} className="w-28 rounded border border-foreground/20 px-2 py-1 text-xs" />
+                                    <input value={newOptionByAddon[addon.id]?.label_fr ?? ""} onChange={(e) => setNewOptionByAddon((prev) => ({ ...prev, [addon.id]: { ...(prev[addon.id] ?? { label_en: "", label_fr: "", price: "", image_url: "" }), label_fr: e.target.value } }))} placeholder={isFr ? "Label (FR)" : "Label (FR)"} className="w-28 rounded border border-foreground/20 px-2 py-1 text-xs" />
+                                    <input type="number" min={0} value={newOptionByAddon[addon.id]?.price ?? ""} onChange={(e) => setNewOptionByAddon((prev) => ({ ...prev, [addon.id]: { ...(prev[addon.id] ?? { label_en: "", label_fr: "", price: "", image_url: "" }), price: e.target.value } }))} placeholder="Price" className="w-20 rounded border border-foreground/20 px-2 py-1 text-xs" />
+                                    <input value={newOptionByAddon[addon.id]?.image_url ?? ""} onChange={(e) => setNewOptionByAddon((prev) => ({ ...prev, [addon.id]: { ...(prev[addon.id] ?? { label_en: "", label_fr: "", price: "", image_url: "" }), image_url: e.target.value } }))} placeholder={isFr ? "Image option" : "Option image URL"} className="w-32 rounded border border-foreground/20 px-2 py-1 text-xs" />
                                     <button type="button" onClick={() => handleAddAddonOption(addon.id)} disabled={!newOptionByAddon[addon.id]?.label_en?.trim()} className="rounded bg-foreground/10 px-2 py-1 text-xs font-medium text-foreground disabled:opacity-50">{isFr ? "Ajouter" : "Add"}</button>
                                   </div>
                                 </div>

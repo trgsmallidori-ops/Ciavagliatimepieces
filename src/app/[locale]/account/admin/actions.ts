@@ -485,6 +485,7 @@ export type ProductAddonOptionRow = {
   label_fr: string;
   price: number;
   sort_order: number;
+  image_url: string | null;
 };
 
 export type ProductAddonRow = {
@@ -510,13 +511,13 @@ export async function getProductAddonsWithOptions(productId: string): Promise<Pr
   if (addonsError || !addons?.length) return [];
   const { data: optionsRows } = await supabase
     .from("product_addon_options")
-    .select("id, addon_id, label_en, label_fr, price, sort_order")
+    .select("id, addon_id, label_en, label_fr, price, sort_order, image_url")
     .in("addon_id", addons.map((a) => (a as { id: string }).id))
     .order("sort_order", { ascending: true });
   const optionsByAddon: Record<string, ProductAddonOptionRow[]> = {};
   addons.forEach((a) => (optionsByAddon[(a as { id: string }).id] = []));
   (optionsRows ?? []).forEach((r) => {
-    const row = r as { id: string; addon_id: string; label_en: string; label_fr: string; price: number; sort_order: number };
+    const row = r as { id: string; addon_id: string; label_en: string; label_fr: string; price: number; sort_order: number; image_url?: string | null };
     const opt: ProductAddonOptionRow = {
       id: row.id,
       addon_id: row.addon_id,
@@ -524,6 +525,7 @@ export async function getProductAddonsWithOptions(productId: string): Promise<Pr
       label_fr: row.label_fr,
       price: Number(row.price),
       sort_order: Number(row.sort_order ?? 0),
+      image_url: row.image_url ?? null,
     };
     if (optionsByAddon[row.addon_id]) optionsByAddon[row.addon_id].push(opt);
   });
@@ -563,7 +565,7 @@ export async function getProductAddonOptions(addonId: string): Promise<ProductAd
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("product_addon_options")
-    .select("id, addon_id, label_en, label_fr, price, sort_order")
+    .select("id, addon_id, label_en, label_fr, price, sort_order, image_url")
     .eq("addon_id", addonId)
     .order("sort_order", { ascending: true });
   if (error) throw error;
@@ -574,6 +576,7 @@ export async function getProductAddonOptions(addonId: string): Promise<ProductAd
     label_fr: (r as { label_fr: string }).label_fr,
     price: Number((r as { price: number }).price),
     sort_order: Number((r as { sort_order?: number }).sort_order ?? 0),
+    image_url: (r as { image_url?: string | null }).image_url ?? null,
   }));
 }
 
@@ -633,17 +636,22 @@ export async function createProductAddonOption(input: {
   label_fr: string;
   price: number;
   sort_order?: number;
+  image_url?: string | null;
 }) {
   await requireAdmin();
   if (!input.addon_id || !input.label_en?.trim()) throw new Error("Addon and label required");
   const supabase = createServerClient();
-  const { error } = await supabase.from("product_addon_options").insert({
+  const row: Record<string, unknown> = {
     addon_id: input.addon_id,
     label_en: input.label_en.trim(),
     label_fr: (input.label_fr ?? input.label_en).trim(),
     price: Math.max(0, Number(input.price ?? 0)),
     sort_order: input.sort_order ?? 0,
-  });
+  };
+  if (input.image_url !== undefined && input.image_url !== null && String(input.image_url).trim() !== "") {
+    row.image_url = String(input.image_url).trim();
+  }
+  const { error } = await supabase.from("product_addon_options").insert(row);
   if (error) throw error;
   revalidatePath("/[locale]/shop/product/[id]", "page");
   revalidatePath("/[locale]/account/admin", "page");
@@ -651,7 +659,7 @@ export async function createProductAddonOption(input: {
 
 export async function updateProductAddonOption(
   id: string,
-  input: { label_en?: string; label_fr?: string; price?: number }
+  input: { label_en?: string; label_fr?: string; price?: number; image_url?: string | null }
 ) {
   await requireAdmin();
   if (!id) throw new Error("Invalid option id");
@@ -660,6 +668,7 @@ export async function updateProductAddonOption(
   if (input.label_en !== undefined) updates.label_en = input.label_en.trim();
   if (input.label_fr !== undefined) updates.label_fr = input.label_fr.trim();
   if (input.price !== undefined) updates.price = Math.max(0, Number(input.price));
+  if (input.image_url !== undefined) updates.image_url = input.image_url === null || input.image_url === "" ? null : String(input.image_url).trim();
   if (Object.keys(updates).length === 0) return;
   const { error } = await supabase.from("product_addon_options").update(updates).eq("id", id);
   if (error) throw error;
@@ -675,6 +684,302 @@ export async function deleteProductAddonOption(id: string) {
   if (error) throw error;
   revalidatePath("/[locale]/shop/product/[id]", "page");
   revalidatePath("/[locale]/account/admin", "page");
+}
+
+/** List all add-ons with product name for bulk-assign dropdown. */
+export type AddonWithProductRow = { addon_id: string; addon_label_en: string; addon_label_fr: string; product_id: string; product_name: string };
+
+export async function getAddonsWithProductNames(): Promise<AddonWithProductRow[]> {
+  await requireAdmin();
+  const supabase = createServerClient();
+  const { data: addons, error: addonsErr } = await supabase
+    .from("product_addons")
+    .select("id, product_id, label_en, label_fr");
+  if (addonsErr || !addons?.length) return [];
+  const productIds = [...new Set(addons.map((a) => (a as { product_id: string }).product_id))];
+  const { data: products } = await supabase.from("products").select("id, name").in("id", productIds);
+  const nameById = new Map((products ?? []).map((p) => [(p as { id: string }).id, (p as { name: string }).name]));
+  return addons.map((a) => {
+    const row = a as { id: string; product_id: string; label_en: string; label_fr: string };
+    return {
+      addon_id: row.id,
+      addon_label_en: row.label_en,
+      addon_label_fr: row.label_fr,
+      product_id: row.product_id,
+      product_name: nameById.get(row.product_id) ?? row.product_id,
+    };
+  });
+}
+
+/** Clone an add-on (and all its options) to one or more products. Skips the add-on's current product. */
+export async function cloneAddonToProducts(addonId: string, productIds: string[]): Promise<{ cloned: number; skipped: number }> {
+  await requireAdmin();
+  if (!addonId || !Array.isArray(productIds) || productIds.length === 0) {
+    return { cloned: 0, skipped: 0 };
+  }
+  const supabase = createServerClient();
+  const { data: addon, error: addonErr } = await supabase
+    .from("product_addons")
+    .select("id, product_id, label_en, label_fr, image_url, sort_order")
+    .eq("id", addonId)
+    .single();
+  if (addonErr || !addon) throw new Error("Add-on not found");
+  const addonRow = addon as { id: string; product_id: string; label_en: string; label_fr: string; image_url: string; sort_order: number };
+  const { data: options } = await supabase
+    .from("product_addon_options")
+    .select("id, label_en, label_fr, price, sort_order, image_url")
+    .eq("addon_id", addonId)
+    .order("sort_order", { ascending: true });
+  const optionRows = (options ?? []) as { label_en: string; label_fr: string; price: number; sort_order: number; image_url?: string | null }[];
+  const targetIds = productIds.filter((id) => id && id !== addonRow.product_id);
+  let cloned = 0;
+  for (const productId of targetIds) {
+    const { data: newAddon, error: insAddonErr } = await supabase
+      .from("product_addons")
+      .insert({
+        product_id: productId,
+        label_en: addonRow.label_en,
+        label_fr: addonRow.label_fr,
+        image_url: addonRow.image_url || "/images/hero-1.svg",
+        sort_order: addonRow.sort_order ?? 0,
+      })
+      .select("id")
+      .single();
+    if (insAddonErr || !newAddon) continue;
+    const newAddonId = (newAddon as { id: string }).id;
+    for (const opt of optionRows) {
+      await supabase.from("product_addon_options").insert({
+        addon_id: newAddonId,
+        label_en: opt.label_en,
+        label_fr: opt.label_fr,
+        price: Number(opt.price),
+        sort_order: Number(opt.sort_order ?? 0),
+        image_url: opt.image_url ?? null,
+      });
+    }
+    cloned++;
+  }
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+  return { cloned, skipped: targetIds.length - cloned };
+}
+
+// ——— Add-on templates (library: create add-on + options, then apply to products) ———
+export type AddonTemplateRow = {
+  id: string;
+  label_en: string;
+  label_fr: string;
+  image_url: string;
+  sort_order: number;
+  created_at?: string;
+};
+
+export type AddonTemplateOptionRow = {
+  id: string;
+  addon_template_id: string;
+  label_en: string;
+  label_fr: string;
+  price: number;
+  image_url: string | null;
+  sort_order: number;
+};
+
+export async function getAdminAddonTemplates(): Promise<(AddonTemplateRow & { option_count?: number })[]> {
+  await requireAdmin();
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("addon_templates")
+    .select("id, label_en, label_fr, image_url, sort_order, created_at")
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  const templates = (data ?? []).map((r) => ({
+    id: (r as { id: string }).id,
+    label_en: (r as { label_en: string }).label_en,
+    label_fr: (r as { label_fr: string }).label_fr,
+    image_url: (r as { image_url: string }).image_url ?? "/images/hero-1.svg",
+    sort_order: Number((r as { sort_order?: number }).sort_order ?? 0),
+    created_at: (r as { created_at?: string }).created_at,
+  }));
+  if (templates.length === 0) return templates;
+  const { data: optCounts } = await supabase
+    .from("addon_template_options")
+    .select("addon_template_id");
+  const countByTemplate: Record<string, number> = {};
+  templates.forEach((t) => (countByTemplate[t.id] = 0));
+  (optCounts ?? []).forEach((r) => {
+    const id = (r as { addon_template_id: string }).addon_template_id;
+    if (countByTemplate[id] !== undefined) countByTemplate[id]++;
+  });
+  return templates.map((t) => ({ ...t, option_count: countByTemplate[t.id] ?? 0 }));
+}
+
+export async function getAddonTemplateOptions(templateId: string): Promise<AddonTemplateOptionRow[]> {
+  await requireAdmin();
+  if (!templateId) return [];
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("addon_template_options")
+    .select("id, addon_template_id, label_en, label_fr, price, image_url, sort_order")
+    .eq("addon_template_id", templateId)
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: (r as { id: string }).id,
+    addon_template_id: (r as { addon_template_id: string }).addon_template_id,
+    label_en: (r as { label_en: string }).label_en,
+    label_fr: (r as { label_fr: string }).label_fr,
+    price: Number((r as { price: number }).price),
+    image_url: (r as { image_url?: string | null }).image_url ?? null,
+    sort_order: Number((r as { sort_order?: number }).sort_order ?? 0),
+  }));
+}
+
+export async function createAddonTemplate(input: { label_en: string; label_fr: string; image_url?: string }) {
+  await requireAdmin();
+  if (!input.label_en?.trim()) throw new Error("Label required");
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("addon_templates")
+    .insert({
+      label_en: input.label_en.trim(),
+      label_fr: (input.label_fr ?? input.label_en).trim(),
+      image_url: (input.image_url ?? "").trim() || "/images/hero-1.svg",
+      sort_order: 0,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  revalidatePath("/[locale]/account/admin", "page");
+  revalidatePath("/[locale]/account/admin/addons", "page");
+  return (data as { id: string }).id;
+}
+
+export async function updateAddonTemplate(id: string, input: { label_en?: string; label_fr?: string; image_url?: string }) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid template id");
+  const supabase = createServerClient();
+  const updates: Record<string, unknown> = {};
+  if (input.label_en !== undefined) updates.label_en = input.label_en.trim();
+  if (input.label_fr !== undefined) updates.label_fr = input.label_fr.trim();
+  if (input.image_url !== undefined) updates.image_url = input.image_url.trim();
+  if (Object.keys(updates).length === 0) return;
+  const { error } = await supabase.from("addon_templates").update(updates).eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/account/admin/addons", "page");
+}
+
+export async function deleteAddonTemplate(id: string) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid template id");
+  const supabase = createServerClient();
+  const { error } = await supabase.from("addon_templates").delete().eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/account/admin/addons", "page");
+}
+
+export async function createAddonTemplateOption(input: {
+  addon_template_id: string;
+  label_en: string;
+  label_fr: string;
+  price: number;
+  image_url?: string | null;
+  sort_order?: number;
+}) {
+  await requireAdmin();
+  if (!input.addon_template_id || !input.label_en?.trim()) throw new Error("Template and label required");
+  const supabase = createServerClient();
+  const row: Record<string, unknown> = {
+    addon_template_id: input.addon_template_id,
+    label_en: input.label_en.trim(),
+    label_fr: (input.label_fr ?? input.label_en).trim(),
+    price: Math.max(0, Number(input.price ?? 0)),
+    sort_order: input.sort_order ?? 0,
+  };
+  if (input.image_url !== undefined && input.image_url !== null && String(input.image_url).trim() !== "") {
+    row.image_url = String(input.image_url).trim();
+  }
+  const { error } = await supabase.from("addon_template_options").insert(row);
+  if (error) throw error;
+  revalidatePath("/[locale]/account/admin/addons", "page");
+}
+
+export async function updateAddonTemplateOption(
+  id: string,
+  input: { label_en?: string; label_fr?: string; price?: number; image_url?: string | null }
+) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid option id");
+  const supabase = createServerClient();
+  const updates: Record<string, unknown> = {};
+  if (input.label_en !== undefined) updates.label_en = input.label_en.trim();
+  if (input.label_fr !== undefined) updates.label_fr = input.label_fr.trim();
+  if (input.price !== undefined) updates.price = Math.max(0, Number(input.price));
+  if (input.image_url !== undefined) updates.image_url = input.image_url === null || input.image_url === "" ? null : String(input.image_url).trim();
+  if (Object.keys(updates).length === 0) return;
+  const { error } = await supabase.from("addon_template_options").update(updates).eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/account/admin/addons", "page");
+}
+
+export async function deleteAddonTemplateOption(id: string) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid option id");
+  const supabase = createServerClient();
+  const { error } = await supabase.from("addon_template_options").delete().eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/account/admin/addons", "page");
+}
+
+/** Apply a template (add-on + all options) to selected products. Creates product_addons + product_addon_options for each. */
+export async function applyAddonTemplateToProducts(templateId: string, productIds: string[]): Promise<{ applied: number }> {
+  await requireAdmin();
+  if (!templateId || !Array.isArray(productIds) || productIds.length === 0) return { applied: 0 };
+  const supabase = createServerClient();
+  const { data: template, error: tErr } = await supabase
+    .from("addon_templates")
+    .select("id, label_en, label_fr, image_url, sort_order")
+    .eq("id", templateId)
+    .single();
+  if (tErr || !template) throw new Error("Add-on template not found");
+  const t = template as { label_en: string; label_fr: string; image_url: string; sort_order: number };
+  const { data: opts } = await supabase
+    .from("addon_template_options")
+    .select("label_en, label_fr, price, image_url, sort_order")
+    .eq("addon_template_id", templateId)
+    .order("sort_order", { ascending: true });
+  const options = (opts ?? []) as { label_en: string; label_fr: string; price: number; image_url?: string | null; sort_order: number }[];
+  let applied = 0;
+  for (const productId of productIds) {
+    if (!productId) continue;
+    const { data: newAddon, error: insErr } = await supabase
+      .from("product_addons")
+      .insert({
+        product_id: productId,
+        label_en: t.label_en,
+        label_fr: t.label_fr,
+        image_url: t.image_url || "/images/hero-1.svg",
+        sort_order: t.sort_order ?? 0,
+      })
+      .select("id")
+      .single();
+    if (insErr || !newAddon) continue;
+    const addonId = (newAddon as { id: string }).id;
+    for (const opt of options) {
+      await supabase.from("product_addon_options").insert({
+        addon_id: addonId,
+        label_en: opt.label_en,
+        label_fr: opt.label_fr,
+        price: Number(opt.price),
+        sort_order: Number(opt.sort_order ?? 0),
+        image_url: opt.image_url ?? null,
+      });
+    }
+    applied++;
+  }
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+  revalidatePath("/[locale]/account/admin/addons", "page");
+  return { applied };
 }
 
 // ——— Featured slides (landing hero carousel) ———
