@@ -8,7 +8,7 @@ import { createBrowserClient } from "@/lib/supabase/client";
 const navItems = [
   { href: "orders", labelEn: "Orders", labelFr: "Commandes" },
   { href: "products", labelEn: "Products", labelFr: "Produits" },
-  { href: "bracelets", labelEn: "Bracelets", labelFr: "Bracelets" },
+  { href: "bracelets", labelEn: "Variants", labelFr: "Variantes" },
   { href: "addons", labelEn: "Add-ons", labelFr: "Extras" },
   { href: "categories", labelEn: "Categories", labelFr: "Catégories" },
   { href: "configurator", labelEn: "Configurator", labelFr: "Configurateur" },

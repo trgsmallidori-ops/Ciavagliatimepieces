@@ -5,18 +5,25 @@ import { useParams } from "next/navigation";
 import ScrollReveal from "@/components/ScrollReveal";
 import {
   getAdminWatchBracelets,
+  getAdminProducts,
+  getProductIdsByBracelet,
   createWatchBracelet,
   updateWatchBracelet,
   deleteWatchBracelet,
+  setBraceletProducts,
   uploadProductImage,
 } from "../actions";
 import type { WatchBraceletRow } from "../actions";
 
-export default function AdminBraceletsPage() {
+type ProductRow = { id: string; name: string };
+
+export default function AdminVariantsPage() {
   const params = useParams<{ locale?: string | string[] }>();
   const locale = Array.isArray(params.locale) ? params.locale[0] : params.locale ?? "en";
   const isFr = locale === "fr";
-  const [bracelets, setBracelets] = useState<WatchBraceletRow[]>([]);
+  const [variants, setVariants] = useState<WatchBraceletRow[]>([]);
+  const [products, setProducts] = useState<ProductRow[]>([]);
+  const [productIdsByVariant, setProductIdsByVariant] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -27,11 +34,22 @@ export default function AdminBraceletsPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editImageUploading, setEditImageUploading] = useState(false);
+  const [selectedProductIdsByVariant, setSelectedProductIdsByVariant] = useState<Record<string, string[]>>({});
+  const [savingAssignmentFor, setSavingAssignmentFor] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      const list = await getAdminWatchBracelets();
-      setBracelets(list);
+      const [variantList, productList, idsByBracelet] = await Promise.all([
+        getAdminWatchBracelets(),
+        getAdminProducts(),
+        getProductIdsByBracelet(),
+      ]);
+      setVariants(variantList);
+      setProducts(
+        (productList as { id: string; name: string }[]).map((p) => ({ id: p.id, name: p.name }))
+      );
+      setProductIdsByVariant(idsByBracelet);
+      setSelectedProductIdsByVariant(idsByBracelet);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     }
@@ -56,7 +74,7 @@ export default function AdminBraceletsPage() {
       await createWatchBracelet({
         title: createTitle.trim(),
         image_url: createImageUrl.trim() || "/images/hero-1.svg",
-        sort_order: bracelets.length,
+        sort_order: variants.length,
       });
       await load();
       setShowCreate(false);
@@ -83,7 +101,14 @@ export default function AdminBraceletsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(isFr ? "Supprimer ce bracelet ? Il sera retiré de tous les produits." : "Delete this bracelet? It will be removed from all products.")) return;
+    if (
+      !confirm(
+        isFr
+          ? "Supprimer cette variante ? Elle sera retirée de tous les produits."
+          : "Delete this variant? It will be removed from all products."
+      )
+    )
+      return;
     setError(null);
     try {
       await deleteWatchBracelet(id);
@@ -91,6 +116,32 @@ export default function AdminBraceletsPage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete");
+    }
+  };
+
+  const toggleProductForVariant = (variantId: string, productId: string, checked: boolean) => {
+    setSelectedProductIdsByVariant((prev) => {
+      const current = prev[variantId] ?? [];
+      if (checked) {
+        return { ...prev, [variantId]: [...current, productId] };
+      }
+      return { ...prev, [variantId]: current.filter((id) => id !== productId) };
+    });
+  };
+
+  const handleSaveAssignment = async (variantId: string) => {
+    setSavingAssignmentFor(variantId);
+    setError(null);
+    try {
+      await setBraceletProducts(variantId, selectedProductIdsByVariant[variantId] ?? []);
+      setProductIdsByVariant((prev) => ({
+        ...prev,
+        [variantId]: selectedProductIdsByVariant[variantId] ?? [],
+      }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save assignment");
+    } finally {
+      setSavingAssignmentFor(null);
     }
   };
 
@@ -107,11 +158,13 @@ export default function AdminBraceletsPage() {
       <ScrollReveal>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold text-white">{isFr ? "Bracelets" : "Bracelets"}</h1>
+            <h1 className="text-3xl font-semibold text-white">
+              {isFr ? "Variantes" : "Variants"}
+            </h1>
             <p className="mt-1 text-white/90">
               {isFr
-                ? "Créez des bracelets réutilisables, puis assignez-les aux produits dans Produits."
-                : "Create reusable bracelets, then assign them to products in Products."}
+                ? "Créez des variantes (ex. bracelets) et choisissez les montres sur lesquelles elles sont proposées."
+                : "Create variants (e.g. bracelets) and choose which watches they apply to."}
             </p>
           </div>
           <button
@@ -124,22 +177,28 @@ export default function AdminBraceletsPage() {
             }}
             className="rounded-full bg-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] text-white"
           >
-            {isFr ? "Nouveau bracelet" : "Add bracelet"}
+            {isFr ? "Nouvelle variante" : "Add variant"}
           </button>
         </div>
       </ScrollReveal>
 
       {error && (
-        <p className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>
+        <p className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {error}
+        </p>
       )}
 
       {showCreate && (
         <ScrollReveal>
           <div className="rounded-[28px] border border-white/70 bg-white/80 p-6 text-foreground shadow-[0_24px_90px_rgba(15,20,23,0.1)]">
-            <h2 className="text-xl">{isFr ? "Nouveau bracelet" : "New bracelet"}</h2>
+            <h2 className="text-xl">
+              {isFr ? "Nouvelle variante" : "New variant"}
+            </h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Nom" : "Name"}</label>
+                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">
+                  {isFr ? "Nom" : "Name"}
+                </label>
                 <input
                   value={createTitle}
                   onChange={(e) => setCreateTitle(e.target.value)}
@@ -148,7 +207,9 @@ export default function AdminBraceletsPage() {
                 />
               </div>
               <div>
-                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Image" : "Image"}</label>
+                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">
+                  {isFr ? "Image" : "Image"}
+                </label>
                 <div className="mt-2 flex flex-wrap items-center gap-3">
                   {createImageUrl && (
                     <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-foreground/5">
@@ -190,10 +251,19 @@ export default function AdminBraceletsPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={handleCreate} disabled={!createTitle.trim()} className="btn-hover rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white disabled:opacity-50">
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={!createTitle.trim()}
+                className="btn-hover rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white disabled:opacity-50"
+              >
                 {isFr ? "Créer" : "Create"}
               </button>
-              <button type="button" onClick={() => setShowCreate(false)} className="btn-hover rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="btn-hover rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]"
+              >
                 {isFr ? "Annuler" : "Cancel"}
               </button>
             </div>
@@ -202,10 +272,14 @@ export default function AdminBraceletsPage() {
       )}
 
       <div className="space-y-4">
-        {bracelets.length === 0 && !showCreate ? (
-          <p className="text-white/70">{isFr ? "Aucun bracelet. Ajoutez-en pour les assigner aux produits." : "No bracelets. Add some to assign them to products."}</p>
+        {variants.length === 0 && !showCreate ? (
+          <p className="text-white/70">
+            {isFr
+              ? "Aucune variante. Ajoutez-en et assignez-les aux montres ci-dessous."
+              : "No variants. Add some and assign them to watches below."}
+          </p>
         ) : (
-          bracelets.map((b) => (
+          variants.map((b) => (
             <ScrollReveal key={b.id}>
               <div className="rounded-[28px] border border-white/70 bg-white/80 p-6 text-foreground shadow-[0_24px_90px_rgba(15,20,23,0.1)]">
                 {editingId === b.id ? (
@@ -215,7 +289,9 @@ export default function AdminBraceletsPage() {
                     </div>
                     <div className="min-w-0 flex-1 space-y-3">
                       <div>
-                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">{isFr ? "Nom" : "Name"}</label>
+                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">
+                          {isFr ? "Nom" : "Name"}
+                        </label>
                         <input
                           value={editTitle}
                           onChange={(e) => setEditTitle(e.target.value)}
@@ -223,7 +299,9 @@ export default function AdminBraceletsPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">{isFr ? "Image" : "Image"}</label>
+                        <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">
+                          {isFr ? "Image" : "Image"}
+                        </label>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                           <input
                             type="file"
@@ -256,35 +334,103 @@ export default function AdminBraceletsPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button type="button" onClick={handleUpdate} className="btn-hover rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white">
+                        <button
+                          type="button"
+                          onClick={handleUpdate}
+                          className="btn-hover rounded-full bg-foreground px-4 py-2 text-xs uppercase tracking-[0.2em] text-white"
+                        >
                           {isFr ? "Enregistrer" : "Save"}
                         </button>
-                        <button type="button" onClick={() => setEditingId(null)} className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]"
+                        >
                           {isFr ? "Annuler" : "Cancel"}
                         </button>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap items-center gap-6">
-                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-foreground/5">
-                      <img src={b.image_url} alt={b.title} className="h-full w-full object-cover" />
+                  <>
+                    <div className="flex flex-wrap items-center gap-6">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-foreground/5">
+                        <img src={b.image_url} alt={b.title} className="h-full w-full object-cover" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-lg font-semibold text-foreground">{b.title}</h3>
+                        <p className="text-xs text-foreground/60">
+                          {(productIdsByVariant[b.id] ?? []).length}{" "}
+                          {isFr ? "produit(s)" : "product(s)"}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(b)}
+                          className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]"
+                        >
+                          {isFr ? "Modifier" : "Edit"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(b.id)}
+                          className="btn-hover rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600"
+                        >
+                          {isFr ? "Supprimer" : "Delete"}
+                        </button>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-lg font-semibold text-foreground">{b.title}</h3>
-                      <p className="text-xs text-foreground/60">
-                        {isFr ? "Assignez ce bracelet aux produits dans Produits → Modifier un produit." : "Assign this bracelet to products in Products → Edit a product."}
-                      </p>
+
+                    <div className="mt-6 border-t border-foreground/10 pt-4">
+                      <h4 className="text-xs uppercase tracking-[0.2em] text-foreground/60 mb-3">
+                        {isFr ? "Appliquer à ces montres" : "Apply to these watches"}
+                      </h4>
+                      {products.length === 0 ? (
+                        <p className="text-sm text-foreground/60">
+                          {isFr ? "Aucun produit. Créez-en dans Produits." : "No products. Create some in Products."}
+                        </p>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap gap-x-6 gap-y-2">
+                            {products.map((p) => {
+                              const selected = (selectedProductIdsByVariant[b.id] ?? []).includes(p.id);
+                              return (
+                                <label
+                                  key={p.id}
+                                  className="flex cursor-pointer items-center gap-2 text-sm"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={(e) =>
+                                      toggleProductForVariant(b.id, p.id, e.target.checked)
+                                    }
+                                    className="h-4 w-4 rounded"
+                                  />
+                                  <span className="text-foreground">{p.name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveAssignment(b.id)}
+                            disabled={savingAssignmentFor === b.id}
+                            className="mt-3 rounded-full bg-foreground/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.2em] text-foreground disabled:opacity-50"
+                          >
+                            {savingAssignmentFor === b.id
+                              ? isFr
+                                ? "Enregistrement…"
+                                : "Saving…"
+                              : isFr
+                                ? "Enregistrer l’assignation"
+                                : "Save assignment"}
+                          </button>
+                        </>
+                      )}
                     </div>
-                    <div className="flex shrink-0 gap-2">
-                      <button type="button" onClick={() => startEdit(b)} className="btn-hover rounded-full border border-foreground/20 px-4 py-2 text-xs uppercase tracking-[0.2em]">
-                        {isFr ? "Modifier" : "Edit"}
-                      </button>
-                      <button type="button" onClick={() => handleDelete(b.id)} className="btn-hover rounded-full border border-red-200 px-4 py-2 text-xs uppercase tracking-[0.2em] text-red-600">
-                        {isFr ? "Supprimer" : "Delete"}
-                      </button>
-                    </div>
-                  </div>
+                  </>
                 )}
               </div>
             </ScrollReveal>

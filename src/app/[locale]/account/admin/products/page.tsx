@@ -22,11 +22,8 @@ import {
   uploadProductImage,
   addProductImage,
   removeProductImage,
-  getAdminWatchBracelets,
-  getAdminProductBracelets,
-  setProductBracelets,
 } from "../actions";
-import type { WatchCategoryRow, ProductAddonRow, ProductAddonOptionRow, WatchBraceletRow } from "../actions";
+import type { WatchCategoryRow, ProductAddonRow, ProductAddonOptionRow } from "../actions";
 
 type Product = {
   id: string;
@@ -65,9 +62,6 @@ export default function AdminProductsPage() {
   const [newAddonImageUrl, setNewAddonImageUrl] = useState("");
   const [newAddonImageUploading, setNewAddonImageUploading] = useState(false);
   const [newOptionByAddon, setNewOptionByAddon] = useState<Record<string, { label_en: string; label_fr: string; price: string; image_url: string }>>({});
-  const [allBracelets, setAllBracelets] = useState<WatchBraceletRow[]>([]);
-  const [productBraceletIds, setProductBraceletIds] = useState<string[]>([]);
-  const [braceletsSaving, setBraceletsSaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -103,16 +97,12 @@ export default function AdminProductsPage() {
     });
     setError(null);
     try {
-      const [images, addons, braceletsList, productBracelets] = await Promise.all([
+      const [images, addons] = await Promise.all([
         getAdminProductImages(p.id),
         getAdminProductAddons(p.id),
-        getAdminWatchBracelets(),
-        getAdminProductBracelets(p.id),
       ]);
       setProductImages(images.map((i) => ({ id: i.id, url: i.url, sort_order: i.sort_order })));
       setProductAddons(addons);
-      setAllBracelets(braceletsList);
-      setProductBraceletIds(productBracelets.map((pb) => pb.bracelet_id));
       const optionIdsByAddon: Record<string, ProductAddonOptionRow[]> = {};
       await Promise.all(
         addons.map(async (a) => {
@@ -125,8 +115,6 @@ export default function AdminProductsPage() {
       setProductImages([]);
       setProductAddons([]);
       setAddonOptionsByAddon({});
-      setAllBracelets([]);
-      setProductBraceletIds([]);
     }
   };
 
@@ -136,29 +124,6 @@ export default function AdminProductsPage() {
     setProductImages([]);
     setProductAddons([]);
     setAddonOptionsByAddon({});
-    setAllBracelets([]);
-    setProductBraceletIds([]);
-  };
-
-  const toggleProductBracelet = (braceletId: string, checked: boolean) => {
-    if (checked) {
-      setProductBraceletIds((prev) => [...prev, braceletId]);
-    } else {
-      setProductBraceletIds((prev) => prev.filter((id) => id !== braceletId));
-    }
-  };
-
-  const handleSaveBracelets = async () => {
-    if (!editingId) return;
-    setBraceletsSaving(true);
-    setError(null);
-    try {
-      await setProductBracelets(editingId, productBraceletIds);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save bracelets");
-    } finally {
-      setBraceletsSaving(false);
-    }
   };
 
   const handleSave = async () => {
@@ -754,40 +719,6 @@ export default function AdminProductsPage() {
                               <button type="button" onClick={handleAddAddon} disabled={!newAddonLabelEn.trim()} className="rounded bg-foreground/10 px-2 py-1 text-xs font-medium text-foreground disabled:opacity-50">{isFr ? "Ajouter add-on" : "Add add-on"}</button>
                             </div>
                           </div>
-                        </div>
-                      )}
-                      {editingId && (
-                        <div className="sm:col-span-2">
-                          <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">{isFr ? "Bracelets (STYLE)" : "Bracelets (STYLE)"}</label>
-                          <p className="mt-1 text-xs text-foreground/50">{isFr ? "Choisissez les bracelets proposés sur la fiche produit. Créez des bracelets dans Bracelets si besoin." : "Choose which bracelets customers can select on the product page. Create bracelets in Bracelets if needed."}</p>
-                          {allBracelets.length === 0 ? (
-                            <p className="mt-2 text-sm text-foreground/60">{isFr ? "Aucun bracelet. Créez-en dans l’onglet Bracelets." : "No bracelets. Create some in the Bracelets tab."}</p>
-                          ) : (
-                            <>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {([
-                                  ...productBraceletIds.map((id) => allBracelets.find((b) => b.id === id)).filter((b): b is WatchBraceletRow => b != null),
-                                  ...allBracelets.filter((b) => !productBraceletIds.includes(b.id)),
-                                ]).map((b) => (
-                                  <label key={b.id} className="flex cursor-pointer items-center gap-2 rounded-xl border border-foreground/20 bg-white/50 px-3 py-2 transition hover:bg-white/80">
-                                    <input
-                                      type="checkbox"
-                                      checked={productBraceletIds.includes(b.id)}
-                                      onChange={(e) => toggleProductBracelet(b.id, e.target.checked)}
-                                      className="h-4 w-4 rounded"
-                                    />
-                                    <span className="text-sm font-medium text-foreground">{b.title}</span>
-                                    <span className="h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-foreground/10">
-                                      <img src={b.image_url} alt="" className="h-full w-full object-cover" />
-                                    </span>
-                                  </label>
-                                ))}
-                              </div>
-                              <button type="button" onClick={handleSaveBracelets} disabled={braceletsSaving || productBraceletIds.length === 0} className="mt-2 rounded-full bg-foreground/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.2em] text-foreground disabled:opacity-50">
-                                {braceletsSaving ? (isFr ? "Enregistrement…" : "Saving…") : (isFr ? "Enregistrer les bracelets" : "Save bracelet assignment")}
-                              </button>
-                            </>
-                          )}
                         </div>
                       )}
                       <div>

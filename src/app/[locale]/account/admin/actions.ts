@@ -547,6 +547,67 @@ export async function deleteWatchBracelet(id: string) {
   revalidatePath("/[locale]/account/admin", "page");
 }
 
+/** Product IDs that have this bracelet (for admin Variants page: "apply to products"). */
+export async function getBraceletProductIds(braceletId: string): Promise<string[]> {
+  await requireAdmin();
+  if (!braceletId) return [];
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("product_bracelets")
+    .select("product_id")
+    .eq("bracelet_id", braceletId);
+  if (error) throw error;
+  return (data ?? []).map((r) => (r as { product_id: string }).product_id);
+}
+
+/** All bracelets → product IDs (one query for Variants page). */
+export async function getProductIdsByBracelet(): Promise<Record<string, string[]>> {
+  await requireAdmin();
+  const supabase = createServerClient();
+  const { data, error } = await supabase.from("product_bracelets").select("bracelet_id, product_id");
+  if (error) throw error;
+  const out: Record<string, string[]> = {};
+  (data ?? []).forEach((r) => {
+    const bid = (r as { bracelet_id: string }).bracelet_id;
+    const pid = (r as { product_id: string }).product_id;
+    if (!out[bid]) out[bid] = [];
+    out[bid].push(pid);
+  });
+  return out;
+}
+
+/** Set which products offer this variant (from Variants page). Replaces assignment for this bracelet only. */
+export async function setBraceletProducts(braceletId: string, productIds: string[]) {
+  await requireAdmin();
+  if (!braceletId) throw new Error("Invalid bracelet ID");
+  const supabase = createServerClient();
+  const { error: delError } = await supabase.from("product_bracelets").delete().eq("bracelet_id", braceletId);
+  if (delError) throw delError;
+  if (productIds.length === 0) {
+    revalidatePath("/[locale]/shop", "page");
+    revalidatePath("/[locale]/shop/product/[id]", "page");
+    revalidatePath("/[locale]/account/admin", "page");
+    return;
+  }
+  // Append at end of each product's variant list (get max sort_order per product)
+  const rows: { product_id: string; bracelet_id: string; sort_order: number }[] = [];
+  for (const productId of productIds) {
+    const { data: existing } = await supabase
+      .from("product_bracelets")
+      .select("sort_order")
+      .eq("product_id", productId)
+      .order("sort_order", { ascending: false })
+      .limit(1);
+    const maxOrder = (existing?.[0] as { sort_order?: number } | undefined)?.sort_order ?? -1;
+    rows.push({ product_id: productId, bracelet_id: braceletId, sort_order: maxOrder + 1 });
+  }
+  const { error } = await supabase.from("product_bracelets").insert(rows);
+  if (error) throw error;
+  revalidatePath("/[locale]/shop", "page");
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
 /** Bracelets assigned to a product (for admin product edit). */
 export async function getAdminProductBracelets(productId: string): Promise<{ bracelet_id: string; sort_order: number }[]> {
   await requireAdmin();
