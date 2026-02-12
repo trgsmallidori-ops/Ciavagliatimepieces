@@ -879,8 +879,8 @@ export default function AdminConfiguratorPage() {
           </div>
 
           {editingFunctionStepsFor && (
-            <div className="mt-8 rounded-xl border-2 border-[var(--accent)]/30 bg-white/90 p-6">
-              <h3 className="text-lg font-medium">
+            <div className="mt-8 rounded-xl border-2 border-[var(--accent)]/30 bg-white/90 p-6 text-foreground">
+              <h3 className="text-lg font-medium text-foreground">
                 {isFr ? "Quelles étapes après la fonction ?" : "Which steps follow for this watch type?"}
               </h3>
               <p className="mt-1 text-sm text-foreground/60">
@@ -891,9 +891,9 @@ export default function AdminConfiguratorPage() {
                   const checked = functionStepIds.includes(s.id);
                   return (
                     <div key={s.id} className="flex items-center gap-2">
-                      <label className="flex cursor-pointer items-center gap-2 rounded-full border border-foreground/20 bg-white px-4 py-2">
+                      <label className="flex cursor-pointer items-center gap-2 rounded-full border border-foreground/20 bg-white px-4 py-2 text-foreground">
                         <input type="checkbox" checked={checked} onChange={() => toggleFunctionStep(s.id)} className="rounded border-foreground/30" />
-                        <span className="text-sm">{s.label_en}</span>
+                        <span className="text-sm text-foreground">{s.label_en}</span>
                       </label>
                       {checked && (
                         <>
