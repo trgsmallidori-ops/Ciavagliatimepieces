@@ -3,6 +3,49 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getUsdToCadRate } from "@/lib/currency";
 import { getSiteUrl, getStripe } from "@/lib/stripe";
 
+/** Stripe line item name: include chosen variant so checkout clearly shows what they're buying. */
+function getBuiltProductLineItemName(
+  baseName: string,
+  configuration: unknown
+): string {
+  if (!configuration || typeof configuration !== "object") return baseName;
+  const cfg = configuration as Record<string, unknown>;
+  const variant = cfg.bracelet_title && typeof cfg.bracelet_title === "string" ? cfg.bracelet_title : "";
+  if (!variant) return baseName;
+  return `${baseName} · ${variant}`;
+}
+
+/** Build Stripe line-item description for a built product with bracelet/addons (so customers see what they're buying). */
+function getBuiltProductConfigDescription(
+  configuration: unknown,
+  locale: "en" | "fr"
+): string {
+  if (!configuration || typeof configuration !== "object") return "";
+  const cfg = configuration as Record<string, unknown>;
+  const lines: string[] = [];
+  const labelKey = locale === "fr" ? "option_label_fr" : "option_label_en";
+  if (cfg.bracelet_title && typeof cfg.bracelet_title === "string") {
+    lines.push(`${locale === "fr" ? "Variante" : "Variant"}: ${cfg.bracelet_title}`);
+  }
+  const addons = Array.isArray(cfg.addons) ? cfg.addons : [];
+  if (addons.length > 0) {
+    const extraLabels = addons
+      .map((a) => {
+        if (!a || typeof a !== "object") return null;
+        const o = a as Record<string, unknown>;
+        const label = (o[labelKey] ?? o.option_label_en ?? o.option_label_fr) as string | undefined;
+        const price = typeof o.price === "number" ? o.price : undefined;
+        if (label) return price != null ? `${label} (C$${price})` : label;
+        return null;
+      })
+      .filter(Boolean);
+    if (extraLabels.length) {
+      lines.push(`${locale === "fr" ? "Extras" : "Extras"}: ${extraLabels.join(", ")}`);
+    }
+  }
+  return lines.join("\n");
+}
+
 /** Build a human-readable list of parts for a custom build (for Stripe product description).
  * config.steps = [functionOptionId, ...optionIds in step order].
  * Uses label_en or label_fr based on locale.
@@ -331,7 +374,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Your cart is empty" }, { status: 400 });
       }
 
-      const builtProductIds = [...new Set(cartRows.filter((r) => !r.configuration).map((r) => r.product_id))];
+      const isConfiguratorCustom = (r: { product_id?: string }) =>
+        typeof r.product_id === "string" && r.product_id.startsWith("custom-");
+      const builtProductIds = [...new Set(cartRows.filter((r) => !isConfiguratorCustom(r)).map((r) => r.product_id))];
       const { data: products } = await supabase
         .from("products")
         .select("id, name, price, stock, active, free_shipping")
@@ -342,7 +387,7 @@ export async function POST(request: NextRequest) {
 
       for (const row of cartRows) {
         const qty = Math.max(1, Number(row.quantity) || 1);
-        const isCustom = !!row.configuration || (typeof row.product_id === "string" && row.product_id.startsWith("custom-"));
+        const isCustom = isConfiguratorCustom(row);
 
         if (isCustom) {
           const unitPrice = Number(row.price) || 0;
@@ -374,20 +419,27 @@ export async function POST(request: NextRequest) {
           );
         }
         const unitPrice = Number(row.price ?? product.price);
+        const baseName = row.title ?? product.name;
+        const configDescription = row.configuration
+          ? getBuiltProductConfigDescription(row.configuration, localeSegment)
+          : undefined;
         lineItems.push({
           quantity: qty,
           price_data: {
             currency: "cad",
-            product_data: { name: row.title ?? product.name },
+            product_data: {
+              name: getBuiltProductLineItemName(baseName, row.configuration),
+              ...(configDescription ? { description: configDescription } : {}),
+            },
             unit_amount: Math.round(unitPrice * 100),
           },
         });
         cartProductQuantities.push({ product_id: row.product_id, quantity: qty });
       }
 
-      const hasCustomItems = cartRows.some((r) => !!r.configuration || (typeof r.product_id === "string" && r.product_id.startsWith("custom-")));
+      const hasCustomItems = cartRows.some((r) => isConfiguratorCustom(r));
       const allBuiltFreeShipping = cartRows
-        .filter((r) => !r.configuration && !(typeof r.product_id === "string" && r.product_id.startsWith("custom-")))
+        .filter((r) => !isConfiguratorCustom(r))
         .every((r) => (productMap.get(r.product_id) as { free_shipping?: boolean } | undefined)?.free_shipping);
       if (hasCustomItems) {
         const { data: freeShipRow } = await supabase.from("site_settings").select("value").eq("key", "configurator_free_shipping").single();
@@ -402,7 +454,9 @@ export async function POST(request: NextRequest) {
 
     if (type === "cart" && !userId && Array.isArray(body.guestCart) && body.guestCart.length > 0) {
       const guestCart = body.guestCart;
-      const builtProductIds = [...new Set(guestCart.filter((r) => !r.configuration && !r.product_id.startsWith("custom-")).map((r) => r.product_id))];
+      const isConfiguratorCustom = (r: { product_id?: string }) =>
+        typeof r.product_id === "string" && r.product_id.startsWith("custom-");
+      const builtProductIds = [...new Set(guestCart.filter((r) => !isConfiguratorCustom(r)).map((r) => r.product_id))];
       const { data: products } = await supabase
         .from("products")
         .select("id, name, price, stock, active, free_shipping")
@@ -412,13 +466,12 @@ export async function POST(request: NextRequest) {
 
       for (const row of guestCart) {
         const qty = Math.max(1, Number(row.quantity) || 1);
-        const isCustom = !!row.configuration || (typeof row.product_id === "string" && row.product_id.startsWith("custom-"));
+        const isCustom = isConfiguratorCustom(row);
 
         if (isCustom) {
           const cfg = row.configuration as Record<string, unknown> | undefined;
           const unitPrice = Number(row.price) || 0;
           if (unitPrice <= 0 && cfg && typeof (cfg as { price?: number }).price === "number") {
-            // use server-calculated price if client sent 0
             const serverPrice = await calculateCustomBuildPrice(supabase, {
               steps: Array.isArray(cfg?.steps) ? cfg.steps : [],
               extras: Array.isArray(cfg?.extras) ? cfg.extras : [],
@@ -444,6 +497,7 @@ export async function POST(request: NextRequest) {
               },
             });
           }
+          cartProductQuantities.push({ product_id: row.product_id, quantity: qty });
           continue;
         }
 
@@ -462,20 +516,27 @@ export async function POST(request: NextRequest) {
           );
         }
         const unitPrice = Number(row.price ?? product.price);
+        const baseName = row.title ?? product.name;
+        const configDescription = row.configuration
+          ? getBuiltProductConfigDescription(row.configuration, localeSegment)
+          : undefined;
         lineItems.push({
           quantity: qty,
           price_data: {
             currency: "cad",
-            product_data: { name: row.title ?? product.name },
+            product_data: {
+              name: getBuiltProductLineItemName(baseName, row.configuration),
+              ...(configDescription ? { description: configDescription } : {}),
+            },
             unit_amount: Math.round(unitPrice * 100),
           },
         });
         cartProductQuantities.push({ product_id: row.product_id, quantity: qty });
       }
 
-      const hasCustomItems = guestCart.some((r) => !!r.configuration || (typeof r.product_id === "string" && r.product_id.startsWith("custom-")));
+      const hasCustomItems = guestCart.some((r) => isConfiguratorCustom(r));
       const allBuiltFreeShipping = guestCart
-        .filter((r) => !r.configuration && !(typeof r.product_id === "string" && r.product_id.startsWith("custom-")))
+        .filter((r) => !isConfiguratorCustom(r))
         .every((r) => (productMap.get(r.product_id) as { free_shipping?: boolean } | undefined)?.free_shipping);
       if (hasCustomItems) {
         const { data: freeShipRow } = await supabase.from("site_settings").select("value").eq("key", "configurator_free_shipping").single();

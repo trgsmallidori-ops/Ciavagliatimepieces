@@ -203,23 +203,34 @@ export default function CartView({ locale, labels }: { locale: string; labels: C
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground">{item.title}</p>
-                    <p className="text-sm text-foreground/70">{formatPrice(Number(item.price))} each</p>
-                    {item.configuration &&
-                    Array.isArray((item.configuration as { addons?: unknown[] }).addons) &&
-                    (item.configuration as { addons: { option_label_en?: string; option_label_fr?: string; price?: number }[] }).addons.length > 0
-                      ? (
-                          <ul className="mt-1 space-y-0.5 text-xs text-foreground/60">
-                            {(item.configuration as { addons: { option_label_en?: string; option_label_fr?: string; price?: number }[] }).addons.map((a, i) => {
-                              const label = activeLocale === "fr" ? (a as { option_label_fr?: string }).option_label_fr : (a as { option_label_en?: string }).option_label_en;
-                              return (
-                                <li key={i}>
-                                  + {label ?? (a as { option_label_en?: string }).option_label_en} ({formatPrice(Number((a as { price?: number }).price ?? 0))})
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )
-                      : null}
+                    {(() => {
+                      const cfg = item.configuration as { bracelet_title?: string; addons?: { option_label_en?: string; option_label_fr?: string; price?: number }[] } | undefined;
+                      const variant = cfg?.bracelet_title;
+                      const addons = Array.isArray(cfg?.addons) ? cfg.addons : [];
+                      if (!variant && addons.length === 0) return null;
+                      return (
+                        <>
+                          {variant && (
+                            <p className="mt-0.5 text-sm text-foreground/70">
+                              {activeLocale === "fr" ? "Variante" : "Variant"}: {variant}
+                            </p>
+                          )}
+                          {addons.length > 0 && (
+                            <ul className="mt-1 space-y-0.5 text-xs text-foreground/60">
+                              {addons.map((a, i) => {
+                                const label = activeLocale === "fr" ? (a as { option_label_fr?: string }).option_label_fr : (a as { option_label_en?: string }).option_label_en;
+                                return (
+                                  <li key={i}>
+                                    + {label ?? (a as { option_label_en?: string }).option_label_en} ({formatPrice(Number((a as { price?: number }).price ?? 0))})
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </>
+                      );
+                    })()}
+                    <p className="mt-0.5 text-sm text-foreground/70">{formatPrice(Number(item.price))} each</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button

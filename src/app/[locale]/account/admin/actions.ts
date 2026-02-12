@@ -513,6 +513,201 @@ export async function deleteProductBand(bandId: string) {
   revalidatePath("/[locale]/account/admin", "page");
 }
 
+// ——— Watch bracelets (reusable; assign to products via product_bracelets) ———
+export type WatchBraceletRow = {
+  id: string;
+  title: string;
+  image_url: string;
+  sort_order: number;
+};
+
+export async function getAdminWatchBracelets(): Promise<WatchBraceletRow[]> {
+  await requireAdmin();
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("watch_bracelets")
+    .select("id, title, image_url, sort_order")
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: (r as { id: string }).id,
+    title: (r as { title: string }).title,
+    image_url: (r as { image_url: string }).image_url,
+    sort_order: Number((r as { sort_order?: number }).sort_order ?? 0),
+  }));
+}
+
+export async function createWatchBracelet(input: { title: string; image_url: string; sort_order?: number }) {
+  await requireAdmin();
+  if (!input.title?.trim() || input.title.length > 200) throw new Error("Title must be 1–200 characters");
+  if (!input.image_url?.trim() || input.image_url.length > 2000) throw new Error("Invalid image URL");
+  const supabase = createServerClient();
+  const { error } = await supabase.from("watch_bracelets").insert({
+    title: input.title.trim(),
+    image_url: input.image_url.trim(),
+    sort_order: input.sort_order ?? 0,
+  });
+  if (error) throw error;
+  revalidatePath("/[locale]/shop", "page");
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
+export async function updateWatchBracelet(id: string, input: { title?: string; image_url?: string; sort_order?: number }) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid bracelet ID");
+  if (input.title !== undefined && (input.title.length > 200 || !input.title.trim())) throw new Error("Title must be 1–200 characters");
+  if (input.image_url !== undefined && (input.image_url.length > 2000 || !input.image_url.trim())) throw new Error("Invalid image URL");
+  const supabase = createServerClient();
+  const updates: { title?: string; image_url?: string; sort_order?: number; updated_at?: string } = {
+    updated_at: new Date().toISOString(),
+  };
+  if (input.title !== undefined) updates.title = input.title.trim();
+  if (input.image_url !== undefined) updates.image_url = input.image_url.trim();
+  if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
+  const { error } = await supabase.from("watch_bracelets").update(updates).eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/shop", "page");
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
+export async function deleteWatchBracelet(id: string) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid bracelet ID");
+  const supabase = createServerClient();
+  const { error } = await supabase.from("watch_bracelets").delete().eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/shop", "page");
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
+/** Product IDs that have this bracelet (for admin Variants page: "apply to products"). */
+export async function getBraceletProductIds(braceletId: string): Promise<string[]> {
+  await requireAdmin();
+  if (!braceletId) return [];
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("product_bracelets")
+    .select("product_id")
+    .eq("bracelet_id", braceletId);
+  if (error) throw error;
+  return (data ?? []).map((r) => (r as { product_id: string }).product_id);
+}
+
+/** All bracelets → product IDs (one query for Variants page). */
+export async function getProductIdsByBracelet(): Promise<Record<string, string[]>> {
+  await requireAdmin();
+  const supabase = createServerClient();
+  const { data, error } = await supabase.from("product_bracelets").select("bracelet_id, product_id");
+  if (error) throw error;
+  const out: Record<string, string[]> = {};
+  (data ?? []).forEach((r) => {
+    const bid = (r as { bracelet_id: string }).bracelet_id;
+    const pid = (r as { product_id: string }).product_id;
+    if (!out[bid]) out[bid] = [];
+    out[bid].push(pid);
+  });
+  return out;
+}
+
+/** Set which products offer this variant (from Variants page). Replaces assignment for this bracelet only. */
+export async function setBraceletProducts(braceletId: string, productIds: string[]) {
+  await requireAdmin();
+  if (!braceletId) throw new Error("Invalid bracelet ID");
+  const supabase = createServerClient();
+  const { error: delError } = await supabase.from("product_bracelets").delete().eq("bracelet_id", braceletId);
+  if (delError) throw delError;
+  if (productIds.length === 0) {
+    revalidatePath("/[locale]/shop", "page");
+    revalidatePath("/[locale]/shop/product/[id]", "page");
+    revalidatePath("/[locale]/account/admin", "page");
+    return;
+  }
+  // Append at end of each product's variant list (get max sort_order per product)
+  const rows: { product_id: string; bracelet_id: string; sort_order: number }[] = [];
+  for (const productId of productIds) {
+    const { data: existing } = await supabase
+      .from("product_bracelets")
+      .select("sort_order")
+      .eq("product_id", productId)
+      .order("sort_order", { ascending: false })
+      .limit(1);
+    const maxOrder = (existing?.[0] as { sort_order?: number } | undefined)?.sort_order ?? -1;
+    rows.push({ product_id: productId, bracelet_id: braceletId, sort_order: maxOrder + 1 });
+  }
+  const { error } = await supabase.from("product_bracelets").insert(rows);
+  if (error) throw error;
+  revalidatePath("/[locale]/shop", "page");
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
+/** Bracelets assigned to a product (for admin product edit). */
+export async function getAdminProductBracelets(productId: string): Promise<{ bracelet_id: string; sort_order: number }[]> {
+  await requireAdmin();
+  if (!productId) return [];
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("product_bracelets")
+    .select("bracelet_id, sort_order")
+    .eq("product_id", productId)
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    bracelet_id: (r as { bracelet_id: string }).bracelet_id,
+    sort_order: Number((r as { sort_order?: number }).sort_order ?? 0),
+  }));
+}
+
+/** Set which bracelets are offered for a product (replaces existing). */
+export async function setProductBracelets(productId: string, braceletIds: string[]) {
+  await requireAdmin();
+  if (!productId || productId.length > 100) throw new Error("Invalid product ID");
+  const supabase = createServerClient();
+  const { error: delError } = await supabase.from("product_bracelets").delete().eq("product_id", productId);
+  if (delError) throw delError;
+  if (braceletIds.length === 0) {
+    revalidatePath("/[locale]/shop", "page");
+    revalidatePath("/[locale]/shop/product/[id]", "page");
+    revalidatePath("/[locale]/account/admin", "page");
+    return;
+  }
+  const rows = braceletIds.map((bracelet_id, i) => ({ product_id: productId, bracelet_id, sort_order: i }));
+  const { error } = await supabase.from("product_bracelets").insert(rows);
+  if (error) throw error;
+  revalidatePath("/[locale]/shop", "page");
+  revalidatePath("/[locale]/shop/product/[id]", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
+/** Fetch bracelets for a product (public, for product page). */
+export async function getProductBracelets(productId: string): Promise<WatchBraceletRow[]> {
+  if (!productId) return [];
+  const supabase = createServerClient();
+  const { data: links, error: linkError } = await supabase
+    .from("product_bracelets")
+    .select("bracelet_id, sort_order")
+    .eq("product_id", productId)
+    .order("sort_order", { ascending: true });
+  if (linkError || !links?.length) return [];
+  const { data: bracelets, error: braceError } = await supabase
+    .from("watch_bracelets")
+    .select("id, title, image_url, sort_order")
+    .in("id", links.map((l) => (l as { bracelet_id: string }).bracelet_id));
+  if (braceError || !bracelets?.length) return [];
+  const orderMap = new Map(links.map((l) => [(l as { bracelet_id: string }).bracelet_id, (l as { sort_order?: number }).sort_order ?? 0]));
+  return bracelets
+    .map((r) => ({
+      id: (r as { id: string }).id,
+      title: (r as { title: string }).title,
+      image_url: (r as { image_url: string }).image_url,
+      sort_order: Number(orderMap.get((r as { id: string }).id) ?? (r as { sort_order?: number }).sort_order ?? 0),
+    }))
+    .sort((a, b) => a.sort_order - b.sort_order);
+}
+
 // ——— Product add-ons (Tailored Extras: Extra Strap, Engraving, etc.) ———
 export type ProductAddonOptionRow = {
   id: string;

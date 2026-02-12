@@ -36,6 +36,13 @@ export type SelectedAddonEntry = {
   price: number;
 };
 
+type Bracelet = {
+  id: string;
+  title: string;
+  image_url: string;
+  sort_order: number;
+};
+
 type ProductDetailProps = {
   product: {
     id: string;
@@ -50,16 +57,18 @@ type ProductDetailProps = {
   };
   images: { id: string; url: string; sort_order: number }[];
   addons?: ProductAddon[];
+  bracelets?: Bracelet[];
   locale: string;
   categoryLabel?: string;
 };
 
-export default function ProductDetail({ product, images, addons = [], locale, categoryLabel }: ProductDetailProps) {
+export default function ProductDetail({ product, images, addons = [], bracelets = [], locale, categoryLabel }: ProductDetailProps) {
   const pathname = usePathname();
   const { currency, formatPrice } = useCurrency();
   const activeLocale = locale || pathname?.split("/").filter(Boolean)[0] || "en";
   const isFr = activeLocale === "fr";
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedBraceletId, setSelectedBraceletId] = useState<string | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddonEntry[]>([]);
   const [selectedOptionByAddon, setSelectedOptionByAddon] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -130,6 +139,13 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
     setSelectedOptionByAddon((prev) => ({ ...initial, ...prev }));
   }, [addons]);
 
+  useEffect(() => {
+    if (bracelets.length > 0 && selectedBraceletId === null) {
+      setSelectedBraceletId(bracelets[0].id);
+    }
+    if (bracelets.length === 0) setSelectedBraceletId(null);
+  }, [bracelets, selectedBraceletId]);
+
   const mainImage = product.image ?? "/images/hero-1.svg";
   const allImages = [mainImage, ...images.map((i) => i.url)];
   const displayImage = allImages[selectedIndex] ?? mainImage;
@@ -137,8 +153,11 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
   const cartTitle = product.name;
   const addonsTotal = selectedAddons.reduce((sum, a) => sum + a.price, 0);
   const totalPrice = product.price + addonsTotal;
-  const configWithAddons =
-    selectedAddons.length > 0
+  const configWithAddons = {
+    ...(selectedBraceletId
+      ? { bracelet_id: selectedBraceletId, bracelet_title: bracelets.find((b) => b.id === selectedBraceletId)?.title }
+      : {}),
+    ...(selectedAddons.length > 0
       ? {
           addons: selectedAddons.map((a) => ({
             addon_id: a.addon_id,
@@ -148,7 +167,9 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
             price: a.price,
           })),
         }
-      : undefined;
+      : {}),
+  };
+  const hasConfig = selectedBraceletId || selectedAddons.length > 0;
   const isExternal = displayImage.startsWith("http");
 
   const handleAddAddon = (addon: ProductAddon) => {
@@ -189,7 +210,7 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
           price: totalPrice,
           title: cartTitle,
           image_url: cartImage,
-          configuration: configWithAddons ?? undefined,
+          configuration: hasConfig ? configWithAddons : undefined,
         });
         window.dispatchEvent(new CustomEvent("cart-updated"));
         window.dispatchEvent(new CustomEvent("cart-item-added"));
@@ -204,7 +225,7 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
       const configMatch = (a: unknown, b: unknown) =>
         a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
       const match = (existing ?? []).find((r) =>
-        configMatch(configWithAddons ?? null, (r as { configuration?: unknown }).configuration)
+        configMatch(hasConfig ? configWithAddons : null, (r as { configuration?: unknown }).configuration)
       );
       const newQty = match ? (Number(match.quantity) || 0) + 1 : 1;
 
@@ -221,7 +242,7 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
           price: totalPrice,
           title: cartTitle,
           image_url: cartImage,
-          configuration: configWithAddons ?? null,
+          configuration: hasConfig ? configWithAddons : null,
         });
       }
       window.dispatchEvent(new CustomEvent("cart-updated"));
@@ -248,7 +269,7 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
             price: totalPrice,
             title: cartTitle,
             image_url: cartImage,
-            configuration: configWithAddons ?? undefined,
+            configuration: hasConfig ? configWithAddons : undefined,
           });
           window.dispatchEvent(new CustomEvent("cart-updated"));
         } else {
@@ -260,7 +281,7 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
           const configMatch = (a: unknown, b: unknown) =>
             a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
           const match = (existing ?? []).find((r) =>
-            configMatch(configWithAddons ?? null, (r as { configuration?: unknown }).configuration)
+            configMatch(hasConfig ? configWithAddons : null, (r as { configuration?: unknown }).configuration)
           );
           if (match) {
             await supabase
@@ -275,7 +296,7 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
               price: totalPrice,
               title: cartTitle,
               image_url: cartImage,
-              configuration: configWithAddons ?? null,
+              configuration: hasConfig ? configWithAddons : null,
             });
           }
           window.dispatchEvent(new CustomEvent("cart-updated"));
@@ -490,6 +511,33 @@ export default function ProductDetail({ product, images, addons = [], locale, ca
                   <li key={i}>{line.trim()}</li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {bracelets.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-sm font-medium uppercase tracking-wider text-white/70 mb-3">
+                {isFr ? "Bracelet" : "STYLE"}
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {bracelets.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setSelectedBraceletId(b.id)}
+                    className={`flex min-w-0 items-center gap-2 rounded-xl border-2 px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-[var(--logo-gold)] focus:ring-offset-2 ${
+                      selectedBraceletId === b.id
+                        ? "border-foreground bg-white/20 text-foreground"
+                        : "border-white/20 bg-white/5 text-white/90 hover:border-white/40"
+                    }`}
+                  >
+                    <span className="truncate font-medium">{b.title}</span>
+                    <span className="h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-foreground/10">
+                      <img src={b.image_url} alt="" className="h-full w-full object-cover" />
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
