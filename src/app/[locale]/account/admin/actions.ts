@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createAuthServerClient, createServerClient } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/admin";
 import { getWatchCategories as getWatchCategoriesLib } from "@/lib/watch-categories";
+import { DEFAULT_FOOTER, type FooterSettings } from "@/lib/footer-settings";
+import { DEFAULT_FAQ, type FaqSettings } from "@/lib/faq-settings";
+import { DEFAULT_HOME_STYLE_CARDS, type HomeStyleCards } from "@/lib/home-style-cards";
+import { builtWatches } from "@/data/watches";
 
 const PRODUCT_IMAGES_BUCKET = "product-images";
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -78,7 +82,6 @@ export async function updateProduct(input: ProductInput & { id: string }) {
   revalidatePath("/[locale]/shop", "page");
   revalidatePath("/[locale]/shop/[category]", "page");
   revalidatePath("/[locale]/shop/product/[id]", "page");
-  revalidatePath("/[locale]/specials", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
 
@@ -127,7 +130,6 @@ export async function createProduct(input: ProductInput) {
   revalidatePath("/[locale]/shop", "page");
   revalidatePath("/[locale]/shop/[category]", "page");
   revalidatePath("/[locale]/shop/product/[id]", "page");
-  revalidatePath("/[locale]/specials", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
 
@@ -143,7 +145,6 @@ export async function deleteProduct(id: string) {
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) throw error;
   revalidatePath("/[locale]/shop", "page");
-  revalidatePath("/[locale]/specials", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
 
@@ -186,6 +187,32 @@ export async function uploadProductImage(formData: FormData): Promise<{ url: str
     .from(PRODUCT_IMAGES_BUCKET)
     .getPublicUrl(path);
 
+  return { url: urlData.publicUrl };
+}
+
+/** Upload a category image for "Select your style" cards. Admin only. */
+export async function uploadCategoryImage(formData: FormData): Promise<{ url: string }> {
+  await requireAdmin();
+  const file = formData.get("image") as File | null;
+  if (!file || !(file instanceof File)) throw new Error("No image file provided");
+  if (file.size > MAX_IMAGE_SIZE) throw new Error("Image must be under 5MB");
+  if (!ALLOWED_TYPES.includes(file.type)) throw new Error("Image must be JPEG, PNG, WebP, or GIF");
+  const supabase = createServerClient();
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `categories/${crypto.randomUUID()}.${ext}`;
+  const { error: bucketError } = await supabase.storage.createBucket(PRODUCT_IMAGES_BUCKET, {
+    public: true,
+    fileSizeLimit: MAX_IMAGE_SIZE,
+    allowedMimeTypes: ALLOWED_TYPES,
+  });
+  if (bucketError && !String(bucketError.message).toLowerCase().includes("already exists")) {
+    throw new Error(bucketError.message);
+  }
+  const { error } = await supabase.storage
+    .from(PRODUCT_IMAGES_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: true });
+  if (error) throw new Error(error.message);
+  const { data: urlData } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path);
   return { url: urlData.publicUrl };
 }
 
@@ -269,6 +296,8 @@ export async function createWatchCategory(input: {
   label_en: string;
   label_fr: string;
   sort_order?: number;
+  image_url?: string | null;
+  display_price?: number | null;
 }) {
   await requireAdmin();
   const slug = input.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
@@ -279,16 +308,19 @@ export async function createWatchCategory(input: {
     label_en: input.label_en?.trim() || slug,
     label_fr: input.label_fr?.trim() || input.label_en?.trim() || slug,
     sort_order: input.sort_order ?? 0,
+    image_url: input.image_url ?? null,
+    display_price: input.display_price ?? null,
   });
   if (error) throw error;
   revalidatePath("/[locale]/shop", "page");
   revalidatePath("/[locale]/shop/[category]", "page");
+  revalidatePath("/[locale]", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
 
 export async function updateWatchCategory(
   id: string,
-  input: { slug?: string; label_en?: string; label_fr?: string; sort_order?: number }
+  input: { slug?: string; label_en?: string; label_fr?: string; sort_order?: number; image_url?: string | null; display_price?: number | null }
 ) {
   await requireAdmin();
   if (!id) throw new Error("Invalid id");
@@ -304,6 +336,8 @@ export async function updateWatchCategory(
   if (input.label_en !== undefined) updates.label_en = input.label_en;
   if (input.label_fr !== undefined) updates.label_fr = input.label_fr;
   if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
+  if (input.image_url !== undefined) updates.image_url = input.image_url;
+  if (input.display_price !== undefined) updates.display_price = input.display_price;
   const { error } = await supabase.from("watch_categories").update(updates).eq("id", id);
   if (error) throw error;
   if (oldSlug && newSlug && oldSlug !== newSlug) {
@@ -311,6 +345,7 @@ export async function updateWatchCategory(
   }
   revalidatePath("/[locale]/shop", "page");
   revalidatePath("/[locale]/shop/[category]", "page");
+  revalidatePath("/[locale]", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
 
@@ -345,6 +380,7 @@ export async function deleteWatchCategory(id: string) {
   if (error) throw error;
   revalidatePath("/[locale]/shop", "page");
   revalidatePath("/[locale]/shop/[category]", "page");
+  revalidatePath("/[locale]", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
 
@@ -980,6 +1016,157 @@ export async function applyAddonTemplateToProducts(templateId: string, productId
   revalidatePath("/[locale]/account/admin", "page");
   revalidatePath("/[locale]/account/admin/addons", "page");
   return { applied };
+}
+
+// ——— Footer (admin-editable, stored in site_settings) ———
+/** Public: get footer content. Returns default if not set. */
+export async function getFooterSettings(): Promise<FooterSettings> {
+  try {
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "footer")
+      .single();
+    if (error || !data?.value) return DEFAULT_FOOTER;
+    const parsed = JSON.parse((data as { value: string }).value) as Partial<FooterSettings>;
+    return { ...DEFAULT_FOOTER, ...parsed } as FooterSettings;
+  } catch {
+    return DEFAULT_FOOTER;
+  }
+}
+
+export async function setFooterSettings(data: FooterSettings) {
+  await requireAdmin();
+  const supabase = createServerClient();
+  await supabase.from("site_settings").upsert(
+    { key: "footer", value: JSON.stringify(data), updated_at: new Date().toISOString() },
+    { onConflict: "key" }
+  );
+  revalidatePath("/[locale]", "layout");
+  revalidatePath("/[locale]/account/admin/footer", "page");
+}
+
+// ——— FAQ (admin-editable Q&A page) ———
+export async function getFaqSettings(): Promise<FaqSettings> {
+  try {
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "faq")
+      .single();
+    if (error || !data?.value) return DEFAULT_FAQ;
+    const parsed = JSON.parse((data as { value: string }).value) as Partial<FaqSettings>;
+    const items = Array.isArray(parsed.items) ? parsed.items : DEFAULT_FAQ.items;
+    return {
+      heading_en: parsed.heading_en ?? DEFAULT_FAQ.heading_en,
+      heading_fr: parsed.heading_fr ?? DEFAULT_FAQ.heading_fr,
+      intro_en: parsed.intro_en ?? DEFAULT_FAQ.intro_en,
+      intro_fr: parsed.intro_fr ?? DEFAULT_FAQ.intro_fr,
+      items: items.map((item) => ({
+        question_en: item.question_en ?? "",
+        question_fr: item.question_fr ?? "",
+        answer_en: item.answer_en ?? "",
+        answer_fr: item.answer_fr ?? "",
+      })),
+    };
+  } catch {
+    return DEFAULT_FAQ;
+  }
+}
+
+export async function setFaqSettings(data: FaqSettings) {
+  await requireAdmin();
+  const supabase = createServerClient();
+  await supabase.from("site_settings").upsert(
+    { key: "faq", value: JSON.stringify(data), updated_at: new Date().toISOString() },
+    { onConflict: "key" }
+  );
+  revalidatePath("/[locale]/faq", "page");
+}
+
+// ——— Home style cards (Custom Build + Shop, inline edit on home) ———
+export async function getHomeStyleCards(): Promise<HomeStyleCards> {
+  try {
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "home_style_cards")
+      .single();
+    if (error || !data?.value) return DEFAULT_HOME_STYLE_CARDS;
+    const parsed = JSON.parse((data as { value: string }).value) as Partial<HomeStyleCards>;
+    return {
+      custom_build: { ...DEFAULT_HOME_STYLE_CARDS.custom_build, ...parsed.custom_build },
+      shop: { ...DEFAULT_HOME_STYLE_CARDS.shop, ...parsed.shop },
+    };
+  } catch {
+    return DEFAULT_HOME_STYLE_CARDS;
+  }
+}
+
+export async function setHomeStyleCards(data: HomeStyleCards) {
+  await requireAdmin();
+  const supabase = createServerClient();
+  await supabase.from("site_settings").upsert(
+    { key: "home_style_cards", value: JSON.stringify(data), updated_at: new Date().toISOString() },
+    { onConflict: "key" }
+  );
+  revalidatePath("/[locale]", "page");
+}
+
+export async function uploadHomeCardImage(formData: FormData): Promise<{ url: string }> {
+  await requireAdmin();
+  const file = formData.get("image") as File | null;
+  if (!file || !(file instanceof File)) throw new Error("No image file provided");
+  if (file.size > MAX_IMAGE_SIZE) throw new Error("Image must be under 5MB");
+  if (!ALLOWED_TYPES.includes(file.type)) throw new Error("Image must be JPEG, PNG, WebP, or GIF");
+  const supabase = createServerClient();
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `home-cards/${crypto.randomUUID()}.${ext}`;
+  const { error: bucketError } = await supabase.storage.createBucket(PRODUCT_IMAGES_BUCKET, {
+    public: true,
+    fileSizeLimit: MAX_IMAGE_SIZE,
+    allowedMimeTypes: ALLOWED_TYPES,
+  });
+  if (bucketError && !String(bucketError.message).toLowerCase().includes("already exists")) {
+    throw new Error(bucketError.message);
+  }
+  const { error } = await supabase.storage
+    .from(PRODUCT_IMAGES_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: true });
+  if (error) throw new Error(error.message);
+  const { data: urlData } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path);
+  return { url: urlData.publicUrl };
+}
+
+// ——— Home "Best of the collection" (inline edit on home) ———
+export type HomeBestOfItem = { id: string; name: string; description: string; price: number; image: string };
+
+export async function getHomeBestOf(): Promise<HomeBestOfItem[]> {
+  try {
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "home_best_of")
+      .single();
+    if (error || !data?.value) return builtWatches as HomeBestOfItem[];
+    return JSON.parse((data as { value: string }).value) as HomeBestOfItem[];
+  } catch {
+    return builtWatches as HomeBestOfItem[];
+  }
+}
+
+export async function setHomeBestOf(items: HomeBestOfItem[]) {
+  await requireAdmin();
+  const supabase = createServerClient();
+  await supabase.from("site_settings").upsert(
+    { key: "home_best_of", value: JSON.stringify(items), updated_at: new Date().toISOString() },
+    { onConflict: "key" }
+  );
+  revalidatePath("/[locale]", "page");
 }
 
 // ——— Featured slides (landing hero carousel) ———

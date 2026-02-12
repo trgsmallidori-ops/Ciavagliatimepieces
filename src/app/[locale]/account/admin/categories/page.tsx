@@ -11,6 +11,7 @@ import {
   deleteWatchCategory,
   reorderWatchCategory,
   updateProduct,
+  uploadCategoryImage,
 } from "../actions";
 import type { WatchCategoryRow } from "../actions";
 
@@ -36,11 +37,13 @@ export default function AdminCategoriesPage() {
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [reorderingId, setReorderingId] = useState<string | null>(null);
-  const [categoryForm, setCategoryForm] = useState<{ slug: string; label_en: string; label_fr: string }>({
+  const [categoryForm, setCategoryForm] = useState<{ slug: string; label_en: string; label_fr: string; image_url: string }>({
     slug: "",
     label_en: "",
     label_fr: "",
+    image_url: "",
   });
+  const [imageUploading, setImageUploading] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -62,20 +65,43 @@ export default function AdminCategoriesPage() {
 
   const startEditCategory = (c: WatchCategoryRow) => {
     setEditingCategoryId(c.id);
-    setCategoryForm({ slug: c.slug, label_en: c.label_en, label_fr: c.label_fr });
+    setCategoryForm({ slug: c.slug, label_en: c.label_en, label_fr: c.label_fr, image_url: c.image_url ?? "" });
     setError(null);
   };
 
   const cancelEditCategory = () => {
     setEditingCategoryId(null);
-    setCategoryForm({ slug: "", label_en: "", label_fr: "" });
+    setCategoryForm({ slug: "", label_en: "", label_fr: "", image_url: "" });
+  };
+
+  const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, setUrl: (url: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.set("image", file);
+      const { url } = await uploadCategoryImage(fd);
+      setUrl(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setImageUploading(false);
+      e.target.value = "";
+    }
   };
 
   const handleSaveCategory = async () => {
     if (!editingCategoryId) return;
     setError(null);
     try {
-      await updateWatchCategory(editingCategoryId, categoryForm);
+      await updateWatchCategory(editingCategoryId, {
+        slug: categoryForm.slug,
+        label_en: categoryForm.label_en,
+        label_fr: categoryForm.label_fr,
+        image_url: categoryForm.image_url || null,
+      });
       setWatchCategories(await getAdminWatchCategories());
       cancelEditCategory();
     } catch (e) {
@@ -87,10 +113,15 @@ export default function AdminCategoriesPage() {
     if (!categoryForm.slug.trim()) return;
     setError(null);
     try {
-      await createWatchCategory(categoryForm);
+      await createWatchCategory({
+        slug: categoryForm.slug,
+        label_en: categoryForm.label_en,
+        label_fr: categoryForm.label_fr,
+        image_url: categoryForm.image_url || null,
+      });
       setWatchCategories(await getAdminWatchCategories());
       setShowAddCategory(false);
-      setCategoryForm({ slug: "", label_en: "", label_fr: "" });
+      setCategoryForm({ slug: "", label_en: "", label_fr: "", image_url: "" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add category");
     }
@@ -174,7 +205,7 @@ export default function AdminCategoriesPage() {
             type="button"
             onClick={() => {
               setShowAddCategory(true);
-              setCategoryForm({ slug: "", label_en: "", label_fr: "" });
+              setCategoryForm({ slug: "", label_en: "", label_fr: "", image_url: "" });
               setError(null);
             }}
             className="rounded-full bg-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] text-white"
@@ -205,12 +236,22 @@ export default function AdminCategoriesPage() {
                 <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">Label (FR)</label>
                 <input value={categoryForm.label_fr} onChange={(e) => setCategoryForm((p) => ({ ...p, label_fr: e.target.value }))} className="mt-2 w-full rounded-full border border-foreground/20 bg-white px-4 py-2" />
               </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Image (carte Accueil)" : "Image (home card)"}</label>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <input value={categoryForm.image_url} onChange={(e) => setCategoryForm((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://…" className="min-w-0 flex-1 rounded-full border border-foreground/20 bg-white px-4 py-2" />
+                  <label className="cursor-pointer rounded-full border border-foreground/20 bg-white px-4 py-2 text-xs uppercase tracking-[0.2em] disabled:opacity-50">
+                    <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleCategoryImageUpload(e, (url) => setCategoryForm((p) => ({ ...p, image_url: url })))} disabled={imageUploading} />
+                    {imageUploading ? "…" : (isFr ? "Téléverser" : "Upload")}
+                  </label>
+                </div>
+              </div>
             </div>
             <div className="mt-4 flex gap-3">
               <button type="button" onClick={handleAddCategory} className="btn-hover rounded-full bg-foreground px-6 py-2 text-xs uppercase tracking-[0.2em] text-white">
                 {isFr ? "Créer" : "Create"}
               </button>
-              <button type="button" onClick={() => { setShowAddCategory(false); setCategoryForm({ slug: "", label_en: "", label_fr: "" }); }} className="btn-hover rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
+              <button type="button" onClick={() => { setShowAddCategory(false); setCategoryForm({ slug: "", label_en: "", label_fr: "", image_url: "" }); }} className="btn-hover rounded-full border border-foreground/20 px-6 py-2 text-xs uppercase tracking-[0.2em]">
                 {isFr ? "Annuler" : "Cancel"}
               </button>
             </div>
@@ -236,6 +277,17 @@ export default function AdminCategoriesPage() {
                     <div>
                       <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">Label (FR)</label>
                       <input value={categoryForm.label_fr} onChange={(e) => setCategoryForm((p) => ({ ...p, label_fr: e.target.value }))} className="mt-1 w-full rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs uppercase tracking-[0.2em] text-foreground/60">{isFr ? "Image (carte Accueil « Choisissez votre style »)" : "Image (home « Select your style » card)"}</label>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <input value={categoryForm.image_url} onChange={(e) => setCategoryForm((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://…" className="min-w-0 flex-1 rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
+                        <label className="cursor-pointer rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm uppercase tracking-[0.2em] disabled:opacity-50">
+                          <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleCategoryImageUpload(e, (url) => setCategoryForm((p) => ({ ...p, image_url: url })))} disabled={imageUploading} />
+                          {imageUploading ? "…" : (isFr ? "Téléverser" : "Upload")}
+                        </label>
+                      </div>
+                      {categoryForm.image_url ? <img src={categoryForm.image_url} alt="" className="mt-2 h-20 w-20 rounded-lg object-cover" /> : null}
                     </div>
                   </div>
                   <div className="flex gap-2">

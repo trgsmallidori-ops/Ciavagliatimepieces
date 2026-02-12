@@ -3,8 +3,18 @@
  * Set NEXT_PUBLIC_SITE_URL in production (e.g. https://ciavagliatimepieces.com).
  */
 
-export const SITE_URL =
+const _siteUrlRaw =
   process.env.NEXT_PUBLIC_SITE_URL || "https://ciavagliatimepieces.com";
+
+/** Site origin only (no path). Prevents /en/en when SITE_URL was set with a path. */
+export const SITE_URL = (() => {
+  try {
+    const u = new URL(_siteUrlRaw);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return _siteUrlRaw.replace(/\/$/, "").replace(/\/(en|fr)(\/.*)?$/i, "") || _siteUrlRaw;
+  }
+})();
 
 export const SITE_NAME = "Ciavaglia Timepieces";
 export const DEFAULT_DESCRIPTION_EN =

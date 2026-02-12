@@ -17,6 +17,7 @@ import {
   organizationJsonLd,
   websiteJsonLd,
 } from "@/lib/seo";
+import { getFooterSettings } from "@/app/[locale]/account/admin/actions";
 
 export async function generateMetadata({
   params,
@@ -77,6 +78,7 @@ export default async function LocaleLayout({
 
   const orgJson = organizationJsonLd(locale);
   const webJson = websiteJsonLd(locale);
+  const footer = await getFooterSettings();
 
   return (
     <div className="min-h-screen bg-[var(--logo-green)]">
@@ -95,7 +97,7 @@ export default async function LocaleLayout({
       />
       <NavBar locale={locale} labels={dictionary.nav} isAdmin={isAdminUser} watchCategories={watchCategories} />
       <main className="pt-28 md:pt-32 bg-[var(--logo-green)] text-white" id="main-content">{children}</main>
-      <Footer locale={locale} />
+      <Footer locale={locale} footer={footer} />
       <CartToast locale={locale} />
       </CurrencyProvider>
     </div>

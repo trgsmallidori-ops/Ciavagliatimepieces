@@ -15,11 +15,9 @@ import type { WatchCategory } from "@/lib/watch-categories";
 type NavLabels = {
   home: string;
   shop: string;
-  specials: string;
   configurator: string;
   allWatches: string;
   contact: string;
-  blog: string;
   account: string;
   cart: string;
   signIn: string;
@@ -30,7 +28,6 @@ type NavLabels = {
 const navItems = [
   { key: "home", href: "" },
   { key: "contact", href: "contact" },
-  { key: "blog", href: "blog" },
 ];
 
 export default function NavBar({
@@ -311,13 +308,6 @@ export default function NavBar({
             >
               {labels.allWatches}
             </Link>
-            <Link
-              href={`/${activeLocale}/specials`}
-              className="text-[var(--logo-gold)] transition hover:text-white"
-              onClick={() => setMobileOpen(false)}
-            >
-              {labels.specials}
-            </Link>
             {watchCategories.map((cat) => {
               const label = activeLocale === "fr" ? cat.label_fr : cat.label_en;
               return (
@@ -412,12 +402,6 @@ export default function NavBar({
                 className="text-xs uppercase tracking-[0.2em] text-white/80 transition hover:text-white"
               >
                 {labels.allWatches}
-              </Link>
-              <Link
-                href={`/${activeLocale}/specials`}
-                className="text-xs uppercase tracking-[0.2em] text-[var(--logo-gold)] transition hover:text-white"
-              >
-                {labels.specials}
               </Link>
               {watchCategories.map((cat) => {
                 const label = activeLocale === "fr" ? cat.label_fr : cat.label_en;
