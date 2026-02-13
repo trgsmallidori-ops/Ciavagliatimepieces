@@ -1161,10 +1161,23 @@ export async function deleteAddonTemplateOption(id: string) {
   revalidatePath("/[locale]/account/admin/addons", "page");
 }
 
-/** Apply a template (add-on + all options) to selected products. Creates product_addons + product_addon_options for each. */
+/** Returns product IDs that have this add-on template applied. Used to pre-check the Apply modal. */
+export async function getProductIdsWithAddonTemplate(templateId: string): Promise<string[]> {
+  await requireAdmin();
+  if (!templateId) return [];
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("product_addons")
+    .select("product_id")
+    .eq("addon_template_id", templateId);
+  if (error) return [];
+  return ((data ?? []) as { product_id: string }[]).map((r) => r.product_id);
+}
+
+/** Apply a template (add-on + all options) to selected products. Replaces current assignments: unchecked products lose the add-on. */
 export async function applyAddonTemplateToProducts(templateId: string, productIds: string[]): Promise<{ applied: number }> {
   await requireAdmin();
-  if (!templateId || !Array.isArray(productIds) || productIds.length === 0) return { applied: 0 };
+  if (!templateId || !Array.isArray(productIds)) return { applied: 0, removedAll: false };
   const supabase = createServerClient();
   const { data: template, error: tErr } = await supabase
     .from("addon_templates")
@@ -1173,6 +1186,16 @@ export async function applyAddonTemplateToProducts(templateId: string, productId
     .single();
   if (tErr || !template) throw new Error("Add-on template not found");
   const t = template as { label_en: string; label_fr: string; image_url: string; sort_order: number };
+  // Remove add-on from products no longer selected (supports unchecking to remove)
+  await supabase
+    .from("product_addons")
+    .delete()
+    .eq("addon_template_id", templateId);
+  if (productIds.length === 0) {
+    revalidatePath("/[locale]/shop/product/[id]", "page");
+    revalidatePath("/[locale]/account/admin/addons", "page");
+    return { applied: 0, removedAll: true };
+  }
   const { data: opts } = await supabase
     .from("addon_template_options")
     .select("label_en, label_fr, price, image_url, sort_order")
@@ -1186,6 +1209,7 @@ export async function applyAddonTemplateToProducts(templateId: string, productId
       .from("product_addons")
       .insert({
         product_id: productId,
+        addon_template_id: templateId,
         label_en: t.label_en,
         label_fr: t.label_fr,
         image_url: t.image_url || "/images/hero-1.svg",
@@ -1210,7 +1234,7 @@ export async function applyAddonTemplateToProducts(templateId: string, productId
   revalidatePath("/[locale]/shop/product/[id]", "page");
   revalidatePath("/[locale]/account/admin", "page");
   revalidatePath("/[locale]/account/admin/addons", "page");
-  return { applied };
+  return { applied, removedAll: false };
 }
 
 // ——— Footer (admin-editable, stored in site_settings) ———

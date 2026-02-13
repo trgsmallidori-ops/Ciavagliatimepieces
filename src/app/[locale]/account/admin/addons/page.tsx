@@ -13,6 +13,7 @@ import {
   updateAddonTemplateOption,
   deleteAddonTemplateOption,
   applyAddonTemplateToProducts,
+  getProductIdsWithAddonTemplate,
   getAdminProducts,
   uploadProductImage,
 } from "../actions";
@@ -89,6 +90,14 @@ export default function AdminAddonsPage() {
     }
     getAddonTemplateOptions(editingId).then(setOptions).catch(() => setOptions([]));
   }, [editingId]);
+
+  useEffect(() => {
+    if (!showApply) {
+      setSelectedProductIds([]);
+      return;
+    }
+    getProductIdsWithAddonTemplate(showApply).then(setSelectedProductIds).catch(() => setSelectedProductIds([]));
+  }, [showApply]);
 
   const startEdit = (t: AddonTemplateRow) => {
     setEditingId(t.id);
@@ -178,14 +187,18 @@ export default function AdminAddonsPage() {
   };
 
   const handleApplyToProducts = async () => {
-    if (!showApply || selectedProductIds.length === 0) return;
+    if (!showApply) return;
     setApplyLoading(true);
     setError(null);
     try {
-      const { applied } = await applyAddonTemplateToProducts(showApply, selectedProductIds);
+      const { applied, removedAll } = await applyAddonTemplateToProducts(showApply, selectedProductIds);
       setShowApply(null);
       setSelectedProductIds([]);
-      alert(isFr ? `${applied} montre(s) mise(s) à jour.` : `${applied} watch(es) updated.`);
+      if (removedAll) {
+        alert(isFr ? "Extra retiré de toutes les montres." : "Add-on removed from all watches.");
+      } else {
+        alert(isFr ? `${applied} montre(s) mise(s) à jour.` : `${applied} watch(es) updated.`);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to apply");
     } finally {
@@ -310,7 +323,7 @@ export default function AdminAddonsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setShowApply(t.id); setSelectedProductIds([]); }}
+                    onClick={() => setShowApply(t.id)}
                     className="rounded-full bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
                   >
                     {isFr ? "Appliquer à des montres" : "Apply to watches"}
@@ -432,7 +445,7 @@ export default function AdminAddonsPage() {
               <button
                 type="button"
                 onClick={handleApplyToProducts}
-                disabled={selectedProductIds.length === 0 || applyLoading}
+                disabled={applyLoading}
                 className="rounded-full bg-[var(--logo-gold)] px-4 py-2 text-sm font-medium text-[var(--logo-green)] disabled:opacity-50"
               >
                 {applyLoading ? "…" : isFr ? `Appliquer à ${selectedProductIds.length} montre(s)` : `Apply to ${selectedProductIds.length} watch(es)`}
