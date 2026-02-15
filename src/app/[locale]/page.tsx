@@ -92,7 +92,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
           locale={locale}
           isAdmin={!!isAdminUser}
           styleCards={styleCards}
-          categories={watchCategories}
+          categories={watchCategories.filter((c) => c.slug !== "womens")}
           sectionHeading={home.selectStyle}
         />
       </StorySection>

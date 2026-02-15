@@ -41,12 +41,9 @@ export default function AdminAddonsPage() {
 
   const [createLabelEn, setCreateLabelEn] = useState("");
   const [createLabelFr, setCreateLabelFr] = useState("");
-  const [createImageUrl, setCreateImageUrl] = useState("");
-  const [createImageUploading, setCreateImageUploading] = useState(false);
 
   const [editLabelEn, setEditLabelEn] = useState("");
   const [editLabelFr, setEditLabelFr] = useState("");
-  const [editImageUrl, setEditImageUrl] = useState("");
 
   const [newOptLabelEn, setNewOptLabelEn] = useState("");
   const [newOptLabelFr, setNewOptLabelFr] = useState("");
@@ -103,7 +100,6 @@ export default function AdminAddonsPage() {
     setEditingId(t.id);
     setEditLabelEn(t.label_en);
     setEditLabelFr(t.label_fr);
-    setEditImageUrl(t.image_url ?? "");
   };
 
   const handleCreate = async () => {
@@ -113,15 +109,14 @@ export default function AdminAddonsPage() {
       const id = await createAddonTemplate({
         label_en: createLabelEn.trim(),
         label_fr: createLabelFr.trim() || createLabelEn.trim(),
-        image_url: createImageUrl.trim() || undefined,
       });
       await loadTemplates();
       setShowCreate(false);
       setCreateLabelEn("");
       setCreateLabelFr("");
-      setCreateImageUrl("");
       setEditingId(id);
-      startEdit({ id, label_en: createLabelEn.trim(), label_fr: createLabelFr.trim() || createLabelEn.trim(), image_url: createImageUrl.trim() || "/images/hero-1.svg", sort_order: 0 });
+      setEditLabelEn(createLabelEn.trim());
+      setEditLabelFr(createLabelFr.trim() || createLabelEn.trim());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create");
     }
@@ -134,7 +129,6 @@ export default function AdminAddonsPage() {
       await updateAddonTemplate(editingId, {
         label_en: editLabelEn.trim(),
         label_fr: editLabelFr.trim(),
-        image_url: editImageUrl.trim() || undefined,
       });
       await loadTemplates();
     } catch (e) {
@@ -258,34 +252,6 @@ export default function AdminAddonsPage() {
                 placeholder={isFr ? "Nom (FR)" : "Name (FR)"}
                 className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white placeholder:text-white/50"
               />
-              <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
-                <input
-                  value={createImageUrl}
-                  onChange={(e) => setCreateImageUrl(e.target.value)}
-                  placeholder={isFr ? "URL image" : "Image URL"}
-                  className="flex-1 min-w-[200px] rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white placeholder:text-white/50"
-                />
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="text-xs text-white/80 file:rounded file:border-0 file:bg-white/20 file:px-3 file:py-1.5 file:text-white"
-                  disabled={createImageUploading}
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    setCreateImageUploading(true);
-                    try {
-                      const fd = new FormData();
-                      fd.append("image", f);
-                      const { url } = await uploadProductImage(fd);
-                      setCreateImageUrl(url);
-                    } finally {
-                      setCreateImageUploading(false);
-                      e.target.value = "";
-                    }
-                  }}
-                />
-              </div>
               <button
                 type="button"
                 onClick={handleCreate}
@@ -353,14 +319,6 @@ export default function AdminAddonsPage() {
                       placeholder={isFr ? "Nom (FR)" : "Name (FR)"}
                       className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white"
                     />
-                    <div className="sm:col-span-2">
-                      <input
-                        value={editImageUrl}
-                        onChange={(e) => setEditImageUrl(e.target.value)}
-                        placeholder={isFr ? "URL image" : "Image URL"}
-                        className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white"
-                      />
-                    </div>
                     <button type="button" onClick={handleUpdateTemplate} className="rounded-full bg-white/20 px-4 py-2 text-sm">
                       {isFr ? "Enregistrer" : "Save"}
                     </button>

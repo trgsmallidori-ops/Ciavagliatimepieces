@@ -1,5 +1,6 @@
 /** Shop category slugs (for URL and product filtering). */
 export const SHOP_CATEGORY_SLUGS = [
+  "womens",
   "stealth",
   "sub-gmt",
   "chronograph",
@@ -28,6 +29,7 @@ export type NavWatchItem =
 export const navWatchItems: NavWatchItem[] = [
   { type: "configurator", labelEn: "Customizer", labelFr: "Customiseur" },
   { type: "shop", labelEn: "Most Popular", labelFr: "Plus populaires" },
+  { type: "category", slug: "womens", labelEn: "Womens", labelFr: "Femmes" },
   { type: "category", slug: "stealth", labelEn: "Stealth", labelFr: "Stealth" },
   { type: "category", slug: "sub-gmt", labelEn: "Sub/GMT", labelFr: "Sub/GMT" },
   { type: "category", slug: "chronograph", labelEn: "Chronograph", labelFr: "Chronographe" },

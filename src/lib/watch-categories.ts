@@ -22,6 +22,22 @@ const FALLBACK_CATEGORIES: WatchCategory[] = shopCategories.map((c, i) => ({
   display_price: null,
 }));
 
+/** Nav-only category: always shown in navbar, never in homepage style blocks. Injected when not in DB. */
+const WOMENS_NAV_CATEGORY: WatchCategory = {
+  id: "nav-womens",
+  slug: "womens",
+  label_en: "Womens",
+  label_fr: "Femmes",
+  sort_order: 0,
+  image_url: null,
+  display_price: null,
+};
+
+function ensureWomensInNav(categories: WatchCategory[]): WatchCategory[] {
+  if (categories.some((c) => c.slug === "womens")) return categories;
+  return [WOMENS_NAV_CATEGORY, ...categories];
+}
+
 /** Server-only: fetch watch categories for nav and shop. Uses static list if DB empty or error. */
 export async function getWatchCategories(): Promise<WatchCategory[]> {
   try {
@@ -30,9 +46,9 @@ export async function getWatchCategories(): Promise<WatchCategory[]> {
       .from("watch_categories")
       .select("id, slug, label_en, label_fr, sort_order, image_url, display_price")
       .order("sort_order", { ascending: true });
-    if (error || !data?.length) return FALLBACK_CATEGORIES;
-    return data;
+    if (error || !data?.length) return ensureWomensInNav(FALLBACK_CATEGORIES);
+    return ensureWomensInNav(data);
   } catch {
-    return FALLBACK_CATEGORIES;
+    return ensureWomensInNav(FALLBACK_CATEGORIES);
   }
 }
