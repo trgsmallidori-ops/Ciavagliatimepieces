@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ScrollReveal from "@/components/ScrollReveal";
+import AdminImageEditor from "@/components/admin/AdminImageEditor";
 import {
   getAdminWatchCategories,
   getAdminProducts,
@@ -44,6 +45,31 @@ export default function AdminCategoriesPage() {
     image_url: "",
   });
   const [imageUploading, setImageUploading] = useState(false);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropModalImageSource, setCropModalImageSource] = useState<string | null>(null);
+  const [cropModalOnSave, setCropModalOnSave] = useState<((url: string) => void) | null>(null);
+
+  const openCropModal = useCallback((file: File, onSave: (url: string) => void) => {
+    setCropModalImageSource(URL.createObjectURL(file));
+    setCropModalOnSave(() => onSave);
+    setCropModalOpen(true);
+    setError(null);
+  }, []);
+
+  const closeCropModal = useCallback(() => {
+    setCropModalOpen(false);
+    if (cropModalImageSource) URL.revokeObjectURL(cropModalImageSource);
+    setCropModalImageSource(null);
+    setCropModalOnSave(null);
+  }, [cropModalImageSource]);
+
+  const handleCropSave = useCallback(
+    (url: string) => {
+      cropModalOnSave?.(url);
+      closeCropModal();
+    },
+    [cropModalOnSave, closeCropModal]
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -74,22 +100,10 @@ export default function AdminCategoriesPage() {
     setCategoryForm({ slug: "", label_en: "", label_fr: "", image_url: "" });
   };
 
-  const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, setUrl: (url: string) => void) => {
+  const handleCategoryImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>, setUrl: (url: string) => void) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setImageUploading(true);
-    setError(null);
-    try {
-      const fd = new FormData();
-      fd.set("image", file);
-      const { url } = await uploadCategoryImage(fd);
-      setUrl(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setImageUploading(false);
-      e.target.value = "";
-    }
+    if (file) openCropModal(file, setUrl);
+    e.target.value = "";
   };
 
   const handleSaveCategory = async () => {
@@ -241,8 +255,8 @@ export default function AdminCategoriesPage() {
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <input value={categoryForm.image_url} onChange={(e) => setCategoryForm((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://…" className="min-w-0 flex-1 rounded-full border border-foreground/20 bg-white px-4 py-2" />
                   <label className="cursor-pointer rounded-full border border-foreground/20 bg-white px-4 py-2 text-xs uppercase tracking-[0.2em] disabled:opacity-50">
-                    <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleCategoryImageUpload(e, (url) => setCategoryForm((p) => ({ ...p, image_url: url })))} disabled={imageUploading} />
-                    {imageUploading ? "…" : (isFr ? "Téléverser" : "Upload")}
+<input type="file" accept="image/*" className="sr-only" onChange={(e) => handleCategoryImageFileSelect(e, (url) => setCategoryForm((p) => ({ ...p, image_url: url })))} />
+                          {isFr ? "Crop & téléverser" : "Crop & upload"}
                   </label>
                 </div>
               </div>
@@ -283,8 +297,8 @@ export default function AdminCategoriesPage() {
                       <div className="mt-1 flex flex-wrap items-center gap-2">
                         <input value={categoryForm.image_url} onChange={(e) => setCategoryForm((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://…" className="min-w-0 flex-1 rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
                         <label className="cursor-pointer rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm uppercase tracking-[0.2em] disabled:opacity-50">
-                          <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleCategoryImageUpload(e, (url) => setCategoryForm((p) => ({ ...p, image_url: url })))} disabled={imageUploading} />
-                          {imageUploading ? "…" : (isFr ? "Téléverser" : "Upload")}
+                          <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleCategoryImageFileSelect(e, (url) => setCategoryForm((p) => ({ ...p, image_url: url })))} />
+                          {isFr ? "Crop & téléverser" : "Crop & upload"}
                         </label>
                       </div>
                       {categoryForm.image_url ? <img src={categoryForm.image_url} alt="" className="mt-2 h-20 w-20 rounded-lg object-cover" /> : null}
@@ -357,6 +371,16 @@ export default function AdminCategoriesPage() {
           </ScrollReveal>
         ))}
       </div>
+
+      <AdminImageEditor
+        open={cropModalOpen}
+        onClose={closeCropModal}
+        imageSource={cropModalImageSource}
+        onSave={handleCropSave}
+        onUpload={uploadCategoryImage}
+        label={isFr ? "Image catégorie" : "Category image"}
+        locale={locale}
+      />
     </div>
   );
 }

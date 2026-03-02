@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import ScrollReveal from "@/components/ScrollReveal";
+import AdminImageEditor from "@/components/admin/AdminImageEditor";
 import {
   getAdminGiveaway,
   getAdminOrders,
@@ -40,6 +41,31 @@ export default function AdminGiveawayPage() {
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropModalImageSource, setCropModalImageSource] = useState<string | null>(null);
+  const [cropModalOnSave, setCropModalOnSave] = useState<((url: string) => void) | null>(null);
+
+  const openCropModal = useCallback((file: File, onSave: (url: string) => void) => {
+    setCropModalImageSource(URL.createObjectURL(file));
+    setCropModalOnSave(() => onSave);
+    setCropModalOpen(true);
+    setImageError(null);
+  }, []);
+
+  const closeCropModal = useCallback(() => {
+    setCropModalOpen(false);
+    if (cropModalImageSource) URL.revokeObjectURL(cropModalImageSource);
+    setCropModalImageSource(null);
+    setCropModalOnSave(null);
+  }, [cropModalImageSource]);
+
+  const handleCropSave = useCallback(
+    (url: string) => {
+      cropModalOnSave?.(url);
+      closeCropModal();
+    },
+    [cropModalOnSave, closeCropModal]
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -213,24 +239,11 @@ export default function AdminGiveawayPage() {
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif"
                     className="block w-full max-w-sm text-sm text-foreground/70 file:mr-3 file:rounded-full file:border-0 file:bg-foreground/10 file:px-4 file:py-2 file:text-xs file:uppercase file:tracking-[0.2em] file:text-foreground"
-                    disabled={uploadingImage}
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (!file) return;
-                      setImageError(null);
-                      setUploadingImage(true);
-                      try {
-                        const fd = new FormData();
-                        fd.append("image", file);
-                        const { url } = await uploadProductImage(fd);
-                        setForm((p) => ({ ...p, image_url: url }));
-                      } catch (err) {
-                        setImageError(err instanceof Error ? err.message : "Upload failed");
-                      } finally {
-                        setUploadingImage(false);
-                        e.target.value = "";
-                      }}
-                    }
+                      if (file) openCropModal(file, (url) => setForm((p) => ({ ...p, image_url: url })));
+                      e.target.value = "";
+                    }}
                   />
                   <input
                     value={form.image_url}
@@ -241,11 +254,6 @@ export default function AdminGiveawayPage() {
                 </div>
               </div>
               {imageError && <p className="mt-1 text-sm text-red-600">{imageError}</p>}
-              {uploadingImage && (
-                <p className="mt-1 text-sm text-foreground/60">
-                  {isFr ? "Upload..." : "Uploading..."}
-                </p>
-              )}
             </div>
             <div>
               <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">
@@ -394,6 +402,16 @@ export default function AdminGiveawayPage() {
           </div>
         </div>
       </ScrollReveal>
+
+      <AdminImageEditor
+        open={cropModalOpen}
+        onClose={closeCropModal}
+        imageSource={cropModalImageSource}
+        onSave={handleCropSave}
+        onUpload={uploadProductImage}
+        label={isFr ? "Image concours" : "Giveaway image"}
+        locale={locale}
+      />
     </div>
   );
 }

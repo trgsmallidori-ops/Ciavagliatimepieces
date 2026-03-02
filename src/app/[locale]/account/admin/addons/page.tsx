@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ScrollReveal from "@/components/ScrollReveal";
+import AdminImageEditor from "@/components/admin/AdminImageEditor";
 import {
   getAdminAddonTemplates,
   getAddonTemplateOptions,
@@ -50,6 +51,31 @@ export default function AdminAddonsPage() {
   const [newOptPrice, setNewOptPrice] = useState("");
   const [newOptImageUrl, setNewOptImageUrl] = useState("");
   const [newOptImageUploading, setNewOptImageUploading] = useState(false);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropModalImageSource, setCropModalImageSource] = useState<string | null>(null);
+  const [cropModalOnSave, setCropModalOnSave] = useState<((url: string) => void) | null>(null);
+
+  const openCropModal = useCallback((file: File, onSave: (url: string) => void) => {
+    setCropModalImageSource(URL.createObjectURL(file));
+    setCropModalOnSave(() => onSave);
+    setCropModalOpen(true);
+    setError(null);
+  }, []);
+
+  const closeCropModal = useCallback(() => {
+    setCropModalOpen(false);
+    if (cropModalImageSource) URL.revokeObjectURL(cropModalImageSource);
+    setCropModalImageSource(null);
+    setCropModalOnSave(null);
+  }, [cropModalImageSource]);
+
+  const handleCropSave = useCallback(
+    (url: string) => {
+      cropModalOnSave?.(url);
+      closeCropModal();
+    },
+    [cropModalOnSave, closeCropModal]
+  );
 
   const loadTemplates = async () => {
     try {
@@ -349,23 +375,10 @@ export default function AdminAddonsPage() {
                           type="file"
                           accept="image/jpeg,image/png,image/webp,image/gif"
                           className="text-xs text-white/80 file:rounded file:border-0 file:bg-white/20 file:px-2 file:py-1 file:text-white file:text-xs"
-                          disabled={newOptImageUploading}
-                          onChange={async (e) => {
+                          onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (!file) return;
-                            setNewOptImageUploading(true);
-                            setError(null);
-                            try {
-                              const fd = new FormData();
-                              fd.append("image", file);
-                              const { url } = await uploadProductImage(fd);
-                              setNewOptImageUrl(url);
-                            } catch (err) {
-                              setError(err instanceof Error ? err.message : "Upload failed");
-                            } finally {
-                              setNewOptImageUploading(false);
-                              e.target.value = "";
-                            }
+                            if (file) openCropModal(file, setNewOptImageUrl);
+                            e.target.value = "";
                           }}
                         />
                       </label>
@@ -415,6 +428,16 @@ export default function AdminAddonsPage() {
           </div>
         </div>
       )}
+
+      <AdminImageEditor
+        open={cropModalOpen}
+        onClose={closeCropModal}
+        imageSource={cropModalImageSource}
+        onSave={handleCropSave}
+        onUpload={uploadProductImage}
+        label={isFr ? "Image option" : "Option image"}
+        locale={locale}
+      />
     </div>
   );
 }

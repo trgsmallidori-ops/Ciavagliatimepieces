@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import AdminImageEditor from "@/components/admin/AdminImageEditor";
 import {
   getAdminConfiguratorSteps,
   getAdminConfiguratorOptions,
@@ -98,6 +99,31 @@ export default function AdminConfiguratorPage() {
   const [uploadingStepImage, setUploadingStepImage] = useState(false);
   const [uploadingOptionImage, setUploadingOptionImage] = useState<"image" | "preview" | "layer" | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropModalImageSource, setCropModalImageSource] = useState<string | null>(null);
+  const [cropModalOnSave, setCropModalOnSave] = useState<((url: string) => void) | null>(null);
+
+  const openCropModal = useCallback((file: File, onSave: (url: string) => void) => {
+    setCropModalImageSource(URL.createObjectURL(file));
+    setCropModalOnSave(() => onSave);
+    setCropModalOpen(true);
+    setUploadError(null);
+  }, []);
+
+  const closeCropModal = useCallback(() => {
+    setCropModalOpen(false);
+    if (cropModalImageSource) URL.revokeObjectURL(cropModalImageSource);
+    setCropModalImageSource(null);
+    setCropModalOnSave(null);
+  }, [cropModalImageSource]);
+
+  const handleCropSave = useCallback(
+    (url: string) => {
+      cropModalOnSave?.(url);
+      closeCropModal();
+    },
+    [cropModalOnSave, closeCropModal]
+  );
 
   const load = async () => {
     try {
@@ -652,23 +678,10 @@ export default function AdminConfiguratorPage() {
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif"
                     className="block max-w-[200px] text-xs text-foreground/70 file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
-                    disabled={uploadingStepImage}
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (!file) return;
-                      setUploadError(null);
-                      setUploadingStepImage(true);
-                      try {
-                        const fd = new FormData();
-                        fd.append("image", file);
-                        const { url } = await uploadProductImage(fd);
-                        setStepForm((p) => ({ ...p, image_url: url }));
-                      } catch (err) {
-                        setUploadError(err instanceof Error ? err.message : "Upload failed");
-                      } finally {
-                        setUploadingStepImage(false);
-                        e.target.value = "";
-                      }
+                      if (file) openCropModal(file, (url) => setStepForm((p) => ({ ...p, image_url: url })));
+                      e.target.value = "";
                     }}
                   />
                   <input
@@ -678,7 +691,6 @@ export default function AdminConfiguratorPage() {
                     className="min-w-[200px] flex-1 rounded-lg border border-foreground/20 px-3 py-2 text-sm"
                   />
                 </div>
-                {uploadingStepImage && <p className="mt-1 text-xs text-foreground/50">{isFr ? "Upload…" : "Uploading…"}</p>}
               </div>
             </div>
             <div className="mt-4 flex gap-2">
@@ -735,23 +747,10 @@ export default function AdminConfiguratorPage() {
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
                   className="block max-w-[180px] text-xs text-white/80 file:mr-2 file:rounded file:border-0 file:bg-white/20 file:px-2 file:py-1 file:text-xs file:text-white"
-                  disabled={uploadingStepImage}
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (!file) return;
-                    setUploadError(null);
-                    setUploadingStepImage(true);
-                    try {
-                      const fd = new FormData();
-                      fd.append("image", file);
-                      const { url } = await uploadProductImage(fd);
-                      setStepImageForm((p) => ({ ...p, image_url: url }));
-                    } catch (err) {
-                      setUploadError(err instanceof Error ? err.message : "Upload failed");
-                    } finally {
-                      setUploadingStepImage(false);
-                      e.target.value = "";
-                    }
+                    if (file) openCropModal(file, (url) => setStepImageForm((p) => ({ ...p, image_url: url })));
+                    e.target.value = "";
                   }}
                 />
                 <input
@@ -769,7 +768,6 @@ export default function AdminConfiguratorPage() {
                   {savingStepImage ? "…" : isFr ? "Enregistrer" : "Save"}
                 </button>
               </div>
-              {uploadingStepImage && <span className="text-xs text-white/60">{isFr ? "Upload…" : "Uploading…"}</span>}
               {uploadError && <span className="text-xs text-red-600">{uploadError}</span>}
               <button
                 type="button"
@@ -1109,23 +1107,10 @@ export default function AdminConfiguratorPage() {
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
                       className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
-                      disabled={uploadingOptionImage !== null}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        setUploadError(null);
-                        setUploadingOptionImage("image");
-                        try {
-                          const fd = new FormData();
-                          fd.append("image", file);
-                          const { url } = await uploadProductImage(fd);
-                          setOptionForm((p) => ({ ...p, image_url: url }));
-                        } catch (err) {
-                          setUploadError(err instanceof Error ? err.message : "Upload failed");
-                        } finally {
-                          setUploadingOptionImage(null);
-                          e.target.value = "";
-                        }
+                        if (file) openCropModal(file, (url) => setOptionForm((p) => ({ ...p, image_url: url })));
+                        e.target.value = "";
                       }}
                     />
                     <input
@@ -1135,7 +1120,6 @@ export default function AdminConfiguratorPage() {
                       className="min-w-[200px] flex-1 rounded-lg border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-neutral-500"
                     />
                   </div>
-                  {uploadingOptionImage === "image" && <p className="mt-1 text-xs text-foreground/60">{isFr ? "Upload…" : "Uploading…"}</p>}
                 </div>
                 <div className="sm:col-span-2">
                   <label className="text-xs font-medium uppercase tracking-wider text-foreground">{isFr ? "Image aperçu" : "Preview image"}</label>
@@ -1144,23 +1128,10 @@ export default function AdminConfiguratorPage() {
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
                       className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
-                      disabled={uploadingOptionImage !== null}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        setUploadError(null);
-                        setUploadingOptionImage("preview");
-                        try {
-                          const fd = new FormData();
-                          fd.append("image", file);
-                          const { url } = await uploadProductImage(fd);
-                          setOptionForm((p) => ({ ...p, preview_image_url: url }));
-                        } catch (err) {
-                          setUploadError(err instanceof Error ? err.message : "Upload failed");
-                        } finally {
-                          setUploadingOptionImage(null);
-                          e.target.value = "";
-                        }
+                        if (file) openCropModal(file, (url) => setOptionForm((p) => ({ ...p, preview_image_url: url })));
+                        e.target.value = "";
                       }}
                     />
                     <input
@@ -1170,7 +1141,6 @@ export default function AdminConfiguratorPage() {
                       className="min-w-[200px] flex-1 rounded-lg border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-neutral-500"
                     />
                   </div>
-                  {uploadingOptionImage === "preview" && <p className="mt-1 text-xs text-foreground/60">{isFr ? "Upload…" : "Uploading…"}</p>}
                 </div>
                 <div className="sm:col-span-2">
                   <label className="text-xs font-medium uppercase tracking-wider text-foreground">{isFr ? "Image couche (aperçu composite)" : "Layer image (composite preview)"}</label>
@@ -1180,23 +1150,10 @@ export default function AdminConfiguratorPage() {
                       type="file"
                       accept="image/png,image/webp"
                       className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
-                      disabled={uploadingOptionImage !== null}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        setUploadError(null);
-                        setUploadingOptionImage("layer");
-                        try {
-                          const fd = new FormData();
-                          fd.append("image", file);
-                          const { url } = await uploadProductImage(fd);
-                          setOptionForm((p) => ({ ...p, layer_image_url: url }));
-                        } catch (err) {
-                          setUploadError(err instanceof Error ? err.message : "Upload failed");
-                        } finally {
-                          setUploadingOptionImage(null);
-                          e.target.value = "";
-                        }
+                        if (file) openCropModal(file, (url) => setOptionForm((p) => ({ ...p, layer_image_url: url })));
+                        e.target.value = "";
                       }}
                     />
                     <input
@@ -1206,7 +1163,6 @@ export default function AdminConfiguratorPage() {
                       className="min-w-[200px] flex-1 rounded-lg border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-neutral-500"
                     />
                   </div>
-                  {uploadingOptionImage === "layer" && <p className="mt-1 text-xs text-foreground/60">{isFr ? "Upload…" : "Uploading…"}</p>}
                 </div>
                 <div>
                   <label className="text-xs font-medium uppercase tracking-wider text-foreground">{isFr ? "Z-index couche" : "Layer z-index"}</label>
@@ -1254,6 +1210,16 @@ export default function AdminConfiguratorPage() {
           )}
         </div>
       </div>
+
+      <AdminImageEditor
+        open={cropModalOpen}
+        onClose={closeCropModal}
+        imageSource={cropModalImageSource}
+        onSave={handleCropSave}
+        onUpload={uploadProductImage}
+        label={isFr ? "Image configurateur" : "Configurator image"}
+        locale={locale}
+      />
     </div>
   );
 }

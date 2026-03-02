@@ -160,7 +160,7 @@ export default function NavBar({
         </svg>
       </button>
     <header
-      className={`fixed left-0 right-0 top-0 z-50 w-full border-b border-white/20 bg-[var(--logo-green)] transition-transform duration-300 ${headerHidden ? "-translate-y-full" : "translate-y-0"}`}
+      className={`fixed left-0 right-0 top-0 z-50 w-full bg-[var(--logo-green)] transition-transform duration-300 ${headerHidden ? "-translate-y-full" : "translate-y-0"}`}
     >
       {/* Full-width top bar: left nav | center logo | right account + locale + cart */}
       <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-2.5">

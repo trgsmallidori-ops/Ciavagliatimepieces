@@ -76,13 +76,14 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
         locale={locale}
         purchaseLabel={hero.purchaseLabel}
         jumpLabel={home.jumpToWatches}
+        jumpHref={`/${locale}/shop`}
         fallbackImage={heroFallbackImage}
       />
 
       <StorySection
         id="watch-collections"
         minHeight="100vh"
-        className="border-t border-foreground/10 bg-[var(--background)] text-foreground"
+        className="bg-[var(--background)] text-foreground"
         contentCenter={false}
       >
         <HomeStyleCardsSection

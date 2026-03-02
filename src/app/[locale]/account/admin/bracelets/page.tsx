@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ScrollReveal from "@/components/ScrollReveal";
+import AdminImageEditor from "@/components/admin/AdminImageEditor";
 import {
   getAdminWatchBracelets,
   getAdminProducts,
@@ -34,6 +35,31 @@ export default function AdminVariantsPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editImageUploading, setEditImageUploading] = useState(false);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropModalImageSource, setCropModalImageSource] = useState<string | null>(null);
+  const [cropModalOnSave, setCropModalOnSave] = useState<((url: string) => void) | null>(null);
+
+  const openCropModal = useCallback((file: File, onSave: (url: string) => void) => {
+    setCropModalImageSource(URL.createObjectURL(file));
+    setCropModalOnSave(() => onSave);
+    setCropModalOpen(true);
+    setError(null);
+  }, []);
+
+  const closeCropModal = useCallback(() => {
+    setCropModalOpen(false);
+    if (cropModalImageSource) URL.revokeObjectURL(cropModalImageSource);
+    setCropModalImageSource(null);
+    setCropModalOnSave(null);
+  }, [cropModalImageSource]);
+
+  const handleCropSave = useCallback(
+    (url: string) => {
+      cropModalOnSave?.(url);
+      closeCropModal();
+    },
+    [cropModalOnSave, closeCropModal]
+  );
   const [selectedProductIdsByVariant, setSelectedProductIdsByVariant] = useState<Record<string, string[]>>({});
   const [savingAssignmentFor, setSavingAssignmentFor] = useState<string | null>(null);
 
@@ -221,23 +247,10 @@ export default function AdminVariantsPage() {
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
                       className="block w-full max-w-xs text-sm text-foreground/70 file:mr-2 file:rounded-full file:border-0 file:bg-foreground/10 file:px-3 file:py-1.5 file:text-xs file:uppercase file:tracking-[0.2em] file:text-foreground"
-                      disabled={createImageUploading}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        setCreateImageUploading(true);
-                        setError(null);
-                        try {
-                          const fd = new FormData();
-                          fd.append("image", file);
-                          const { url } = await uploadProductImage(fd);
-                          setCreateImageUrl(url);
-                        } catch (err) {
-                          setError(err instanceof Error ? err.message : "Upload failed");
-                        } finally {
-                          setCreateImageUploading(false);
-                          e.target.value = "";
-                        }
+                        if (file) openCropModal(file, setCreateImageUrl);
+                        e.target.value = "";
                       }}
                     />
                     <input
@@ -307,23 +320,10 @@ export default function AdminVariantsPage() {
                             type="file"
                             accept="image/jpeg,image/png,image/webp,image/gif"
                             className="block max-w-[200px] text-xs file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
-                            disabled={editImageUploading}
-                            onChange={async (e) => {
+                            onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (!file) return;
-                              setEditImageUploading(true);
-                              setError(null);
-                              try {
-                                const fd = new FormData();
-                                fd.append("image", file);
-                                const { url } = await uploadProductImage(fd);
-                                setEditImageUrl(url);
-                              } catch (err) {
-                                setError(err instanceof Error ? err.message : "Upload failed");
-                              } finally {
-                                setEditImageUploading(false);
-                                e.target.value = "";
-                              }
+                              if (file) openCropModal(file, setEditImageUrl);
+                              e.target.value = "";
                             }}
                           />
                           <input
@@ -437,6 +437,16 @@ export default function AdminVariantsPage() {
           ))
         )}
       </div>
+
+      <AdminImageEditor
+        open={cropModalOpen}
+        onClose={closeCropModal}
+        imageSource={cropModalImageSource}
+        onSave={handleCropSave}
+        onUpload={uploadProductImage}
+        label={isFr ? "Image bracelet" : "Bracelet image"}
+        locale={locale}
+      />
     </div>
   );
 }

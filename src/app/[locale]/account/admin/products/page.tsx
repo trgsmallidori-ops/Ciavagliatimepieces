@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import ScrollReveal from "@/components/ScrollReveal";
+import AdminImageEditor from "@/components/admin/AdminImageEditor";
 import {
   getAdminProducts,
   getAdminWatchCategories,
@@ -62,6 +63,31 @@ export default function AdminProductsPage() {
   const [newAddonImageUrl, setNewAddonImageUrl] = useState("");
   const [newAddonImageUploading, setNewAddonImageUploading] = useState(false);
   const [newOptionByAddon, setNewOptionByAddon] = useState<Record<string, { label_en: string; label_fr: string; price: string; image_url: string }>>({});
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropModalImageSource, setCropModalImageSource] = useState<string | null>(null);
+  const [cropModalOnSave, setCropModalOnSave] = useState<((url: string) => void) | null>(null);
+
+  const openCropModal = useCallback((file: File, onSave: (url: string) => void) => {
+    setCropModalImageSource(URL.createObjectURL(file));
+    setCropModalOnSave(() => onSave);
+    setCropModalOpen(true);
+    setImageError(null);
+  }, []);
+
+  const closeCropModal = useCallback(() => {
+    setCropModalOpen(false);
+    if (cropModalImageSource) URL.revokeObjectURL(cropModalImageSource);
+    setCropModalImageSource(null);
+    setCropModalOnSave(null);
+  }, [cropModalImageSource]);
+
+  const handleCropSave = useCallback(
+    (url: string) => {
+      cropModalOnSave?.(url);
+      closeCropModal();
+    },
+    [cropModalOnSave, closeCropModal]
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -418,23 +444,10 @@ export default function AdminProductsPage() {
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
                       className="block w-full max-w-sm text-sm text-foreground/70 file:mr-3 file:rounded-full file:border-0 file:bg-foreground/10 file:px-4 file:py-2 file:text-xs file:uppercase file:tracking-[0.2em] file:text-foreground"
-                      disabled={uploadingImage}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        setImageError(null);
-                        setUploadingImage(true);
-                        try {
-                          const fd = new FormData();
-                          fd.append("image", file);
-                          const { url } = await uploadProductImage(fd);
-                          setFormData((p) => ({ ...p, image: url }));
-                        } catch (err) {
-                          setImageError(err instanceof Error ? err.message : "Upload failed");
-                        } finally {
-                          setUploadingImage(false);
-                          e.target.value = "";
-                        }
+                        if (file) openCropModal(file, (url) => setFormData((p) => ({ ...p, image: url })));
+                        e.target.value = "";
                       }}
                     />
                     <input
@@ -446,7 +459,6 @@ export default function AdminProductsPage() {
                   </div>
                 </div>
                 {imageError && <p className="mt-1 text-sm text-red-600">{imageError}</p>}
-                {uploadingImage && <p className="mt-1 text-sm text-foreground/60">{isFr ? "Upload..." : "Uploading..."}</p>}
               </div>
               <div className="sm:col-span-2">
                 <label className="text-xs uppercase tracking-[0.3em] text-foreground/60">{isFr ? "Images supplémentaires" : "Additional images"}</label>
@@ -471,23 +483,10 @@ export default function AdminProductsPage() {
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
                       className="block max-w-[140px] text-xs file:mr-1 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
-                      disabled={uploadingImage}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        setImageError(null);
-                        setUploadingImage(true);
-                        try {
-                          const fd = new FormData();
-                          fd.append("image", file);
-                          const { url } = await uploadProductImage(fd);
-                          setNewProductExtraImages((prev) => [...prev, url]);
-                        } catch (err) {
-                          setImageError(err instanceof Error ? err.message : "Upload failed");
-                        } finally {
-                          setUploadingImage(false);
-                          e.target.value = "";
-                        }
+                        if (file) openCropModal(file, (url) => setNewProductExtraImages((prev) => [...prev, url]));
+                        e.target.value = "";
                       }}
                     />
                     <form
@@ -601,22 +600,10 @@ export default function AdminProductsPage() {
                             </div>
                           )}
                           <div className="min-w-0 flex-1 space-y-1">
-                            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="block w-full max-w-xs text-sm text-foreground/70 file:mr-2 file:rounded-full file:border-0 file:bg-foreground/10 file:px-3 file:py-1.5 file:text-xs file:uppercase file:tracking-[0.2em] file:text-foreground" disabled={uploadingImage} onChange={async (e) => {
+                            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="block w-full max-w-xs text-sm text-foreground/70 file:mr-2 file:rounded-full file:border-0 file:bg-foreground/10 file:px-3 file:py-1.5 file:text-xs file:uppercase file:tracking-[0.2em] file:text-foreground" onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (!file) return;
-                              setImageError(null);
-                              setUploadingImage(true);
-                              try {
-                                const fd = new FormData();
-                                fd.append("image", file);
-                                const { url } = await uploadProductImage(fd);
-                                setFormData((prev) => ({ ...prev, image: url }));
-                              } catch (err) {
-                                setImageError(err instanceof Error ? err.message : "Upload failed");
-                              } finally {
-                                setUploadingImage(false);
-                                e.target.value = "";
-                              }
+                              if (file) openCropModal(file, (url) => setFormData((prev) => ({ ...prev, image: url })));
+                              e.target.value = "";
                             }} />
                             <input value={formData.image ?? ""} onChange={(e) => setFormData((prev) => ({ ...prev, image: e.target.value }))} placeholder="Or paste image URL" className="w-full rounded-full border border-foreground/20 bg-white px-3 py-2 text-sm" />
                           </div>
@@ -637,22 +624,10 @@ export default function AdminProductsPage() {
                               </div>
                             ))}
                             <div className="flex flex-col gap-1">
-                              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="block max-w-[140px] text-xs file:mr-1 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground" disabled={uploadingImage} onChange={async (e) => {
+                              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="block max-w-[140px] text-xs file:mr-1 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground" onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (!file || !editingId) return;
-                                setImageError(null);
-                                setUploadingImage(true);
-                                try {
-                                  const fd = new FormData();
-                                  fd.append("image", file);
-                                  const { url } = await uploadProductImage(fd);
-                                  await handleAddProductImage(editingId, url);
-                                } catch (err) {
-                                  setImageError(err instanceof Error ? err.message : "Upload failed");
-                                } finally {
-                                  setUploadingImage(false);
-                                  e.target.value = "";
-                                }
+                                if (file && editingId) openCropModal(file, async (url) => { await handleAddProductImage(editingId, url); });
+                                e.target.value = "";
                               }} />
                               <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); const input = (e.currentTarget.elements.namedItem("extraImageUrl") as HTMLInputElement); const url = input?.value?.trim(); if (url && editingId) { handleAddProductImage(editingId, url); input.value = ""; } }}>
                                 <input name="extraImageUrl" type="url" placeholder={isFr ? "URL image" : "Image URL"} className="w-32 rounded border border-foreground/20 px-2 py-1 text-xs" />
@@ -777,6 +752,16 @@ export default function AdminProductsPage() {
           </ScrollReveal>
         ))}
       </div>
+
+      <AdminImageEditor
+        open={cropModalOpen}
+        onClose={closeCropModal}
+        imageSource={cropModalImageSource}
+        onSave={handleCropSave}
+        onUpload={uploadProductImage}
+        label={isFr ? "Image produit" : "Product image"}
+        locale={locale}
+      />
     </div>
   );
 }
