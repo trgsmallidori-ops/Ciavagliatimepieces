@@ -61,38 +61,61 @@ export default function FeaturedScroll({
   const sectionRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [useMotion, setUseMotion] = useState(true);
+  /** On mobile/touch we use simple stacked scroll to avoid sticky + transform jank. Default true to avoid flash of janky animation on mobile. */
+  const [isMobileOrTouch, setIsMobileOrTouch] = useState(true);
+  const rafId = useRef<number | null>(null);
+  const progressRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setUseMotion(false);
+      return;
     }
+    const touchOrNarrow = () => {
+      const touch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      const narrow = window.innerWidth < 768;
+      setIsMobileOrTouch(touch && narrow);
+    };
+    touchOrNarrow();
+    window.addEventListener("resize", touchOrNarrow);
+    return () => window.removeEventListener("resize", touchOrNarrow);
   }, []);
 
   useEffect(() => {
     const section = sectionRef.current;
-    if (!section || !useMotion) return;
+    if (!section || !useMotion || isMobileOrTouch) return;
 
     const update = () => {
       const rect = section.getBoundingClientRect();
       const vh = window.innerHeight;
       const range = vh * (VH_PER_SLIDE / 100);
       const raw = rect.top <= 0 ? Math.min(items.length, -rect.top / range) : 0;
+      progressRef.current = raw;
       setScrollProgress(raw);
+      rafId.current = null;
+    };
+
+    const onScrollOrResize = () => {
+      if (rafId.current != null) return;
+      rafId.current = requestAnimationFrame(update);
     };
 
     update();
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
+    window.addEventListener("scroll", onScrollOrResize, { passive: true });
+    window.addEventListener("resize", onScrollOrResize);
     return () => {
-      window.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", onScrollOrResize);
+      window.removeEventListener("resize", onScrollOrResize);
+      if (rafId.current != null) cancelAnimationFrame(rafId.current);
     };
-  }, [useMotion, items.length]);
+  }, [useMotion, isMobileOrTouch, items.length]);
 
   const jumpUrl = jumpHref ?? "#watch-collections";
 
-  if (!useMotion) {
+  const useSimpleStack = !useMotion || isMobileOrTouch;
+
+  if (useSimpleStack) {
     return (
       <section className="-mt-28 md:-mt-32 w-full bg-[var(--background)] text-foreground" aria-label="Featured">
         {items.map((slide, index) => (
@@ -223,8 +246,8 @@ function FeaturedSlideLayer({
       className="absolute inset-0 w-full h-full"
       style={{
         zIndex: isCurrentSlide ? totalSlides : slideIndex,
-        transform: `translateY(${slideY}%)`,
-        transition: "transform 0.2s ease",
+        transform: `translate3d(0, ${slideY}%, 0)`,
+        ...(isCurrentSlide || slideIndex === currentIndex + 1 ? { willChange: "transform" as const } : {}),
         pointerEvents: isInteractive ? "auto" : "none",
       }}
     >
