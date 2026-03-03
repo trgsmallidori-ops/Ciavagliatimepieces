@@ -2033,6 +2033,71 @@ export async function setConfiguratorAddonOptions(addonId: string, optionIds: st
   revalidatePath("/[locale]/account/admin", "page");
 }
 
+/** Admin: get layer transforms (position/scale) for a watch type (function option). */
+export async function getLayerTransformsForFunction(
+  functionOptionId: string
+): Promise<LayerTransformRow[]> {
+  await requireAdmin();
+  if (!functionOptionId) return [];
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("configurator_layer_transforms")
+    .select("step_id, offset_x, offset_y, scale")
+    .eq("function_option_id", functionOptionId);
+  if (error) return [];
+  const stepIds = (data ?? []).map((r: { step_id: string }) => r.step_id);
+  if (stepIds.length === 0) return [];
+  const { data: steps } = await supabase
+    .from("configurator_steps")
+    .select("id, step_key")
+    .in("id", stepIds);
+  const idToKey = new Map(
+    (steps ?? []).map((s: { id: string; step_key: string | null }) => [s.id, (s.step_key ?? "").toString()])
+  );
+  return (data ?? []).map((r: { step_id: string; offset_x: number; offset_y: number; scale: number }) => ({
+    step_key: idToKey.get(r.step_id) ?? "",
+    offset_x: Number(r.offset_x ?? 0),
+    offset_y: Number(r.offset_y ?? 0),
+    scale: Number(r.scale ?? 1),
+  }));
+}
+
+/** Admin: set layer transforms for a watch type. Transforms keyed by step_id. */
+export async function setLayerTransforms(
+  functionOptionId: string,
+  transforms: { step_id: string; offset_x: number; offset_y: number; scale: number }[]
+): Promise<void> {
+  await requireAdmin();
+  if (!functionOptionId) throw new Error("Function option id required");
+  const supabase = createServerClient();
+  const { error: delErr } = await supabase
+    .from("configurator_layer_transforms")
+    .delete()
+    .eq("function_option_id", functionOptionId);
+  if (delErr) throw delErr;
+  if (transforms.length > 0) {
+    const rows = transforms.map((t) => ({
+      function_option_id: functionOptionId,
+      step_id: t.step_id,
+      offset_x: t.offset_x,
+      offset_y: t.offset_y,
+      scale: Math.max(0.5, Math.min(2, t.scale)),
+    }));
+    const { error: insErr } = await supabase.from("configurator_layer_transforms").insert(rows);
+    if (insErr) throw insErr;
+  }
+  revalidatePath("/[locale]/configurator", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
+/** Per-step layer transform for configurator preview (admin-set, used on public configurator). */
+export type LayerTransformRow = {
+  step_key: string;
+  offset_x: number;
+  offset_y: number;
+  scale: number;
+};
+
 /** Public: full configurator data for customer (no auth). Used by Configurator component. */
 export type PublicConfiguratorData = {
   stepsMeta: { id: string; step_key: string | null; label_en: string; label_fr: string; optional: boolean; sort_order: number; image_url: string | null }[];
@@ -2041,6 +2106,8 @@ export type PublicConfiguratorData = {
   options: { id: string; step_id: string; parent_option_id: string | null; label_en: string; label_fr: string; letter: string; price: number; discount_percent: number; image_url: string | null; preview_image_url: string | null; layer_image_url: string | null; layer_z_index: number }[];
   addons: { id: string; step_id: string; label_en: string; label_fr: string; price: number; option_ids: string[] }[];
   configuratorDiscountPercent: number;
+  /** Layer position/scale per function (watch type). Key = function_option_id, value = per step_key. */
+  layerTransformsByFunction: Record<string, LayerTransformRow[]>;
 };
 
 export async function getPublicConfiguratorData(): Promise<PublicConfiguratorData | null> {
@@ -2087,7 +2154,7 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       .from("configurator_function_steps")
       .select("function_option_id, step_id, sort_order")
       .order("sort_order", { ascending: true });
-    if (fsErr) return { stepsMeta, functionOptions, functionStepsMap: {}, options: allOptions ?? [], addons: [], configuratorDiscountPercent: 0 };
+    if (fsErr) return { stepsMeta, functionOptions, functionStepsMap: {}, options: allOptions ?? [], addons: [], configuratorDiscountPercent: 0, layerTransformsByFunction: {} };
 
     const functionStepsMap: Record<string, string[]> = {};
     (fsRows ?? []).forEach((r: { function_option_id: string; step_id: string }) => {
@@ -2098,7 +2165,7 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
     const { data: addonsRows, error: addonsErr } = await supabase
       .from("configurator_addons")
       .select("id, step_id, label_en, label_fr, price");
-    if (addonsErr) return { stepsMeta, functionOptions, functionStepsMap, options: allOptions ?? [], addons: [], configuratorDiscountPercent: 0 };
+    if (addonsErr) return { stepsMeta, functionOptions, functionStepsMap, options: allOptions ?? [], addons: [], configuratorDiscountPercent: 0, layerTransformsByFunction: {} };
 
     const { data: addonOptRows } = await supabase.from("configurator_addon_options").select("addon_id, option_id");
     const optionIdsByAddon: Record<string, string[]> = {};
@@ -2138,7 +2205,25 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       .single();
     const configuratorDiscountPercent = Math.min(100, Math.max(0, Number((discountRow as { value?: string } | null)?.value ?? 0)));
 
-    return { stepsMeta, functionOptions, functionStepsMap, options, addons, configuratorDiscountPercent };
+    let layerTransformsByFunction: Record<string, LayerTransformRow[]> = {};
+    const { data: ltRows, error: ltErr } = await supabase
+      .from("configurator_layer_transforms")
+      .select("function_option_id, step_id, offset_x, offset_y, scale");
+    if (!ltErr && ltRows?.length) {
+      const stepIdToKey = new Map(stepsMeta.map((s) => [s.id, (s.step_key ?? "").toString()]));
+      ltRows.forEach((r: { function_option_id: string; step_id: string; offset_x: number; offset_y: number; scale: number }) => {
+        const fid = r.function_option_id;
+        if (!layerTransformsByFunction[fid]) layerTransformsByFunction[fid] = [];
+        layerTransformsByFunction[fid].push({
+          step_key: stepIdToKey.get(r.step_id) ?? "",
+          offset_x: Number(r.offset_x ?? 0),
+          offset_y: Number(r.offset_y ?? 0),
+          scale: Number(r.scale ?? 1),
+        });
+      });
+    }
+
+    return { stepsMeta, functionOptions, functionStepsMap, options, addons, configuratorDiscountPercent, layerTransformsByFunction };
   } catch {
     return null;
   }

@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import html2canvas from "html2canvas";
 import AdminImageEditor from "@/components/admin/AdminImageEditor";
+import { WatchPreview } from "@/components/WatchPreview";
+import { CONFIGURATOR_PREVIEW_SIZE_PX } from "@/lib/configurator-constants";
 import {
   getAdminConfiguratorSteps,
   getAdminConfiguratorOptions,
@@ -25,6 +28,8 @@ import {
   setConfiguratorDiscount,
   getConfiguratorFreeShipping,
   setConfiguratorFreeShipping,
+  getLayerTransformsForFunction,
+  setLayerTransforms,
 } from "../actions";
 import type {
   ConfiguratorStepRow,
@@ -59,9 +64,10 @@ export default function AdminConfiguratorPage() {
   const [configuratorFreeShipping, setConfiguratorFreeShippingState] = useState<boolean>(false);
   const [configuratorFreeShippingSaving, setConfiguratorFreeShippingSaving] = useState(false);
 
-  /** Which watch type we're "editing as" — step bar and options match customer view for this type */
+  /** Which watch type we're "editing as" — synced with preview when admin selects a function */
   const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(null);
-  const [currentStepKey, setCurrentStepKey] = useState("function");
+  /** Current step in the preview flow (0 = function, 1 = size, …). Drives which options are shown. */
+  const [previewStepIndex, setPreviewStepIndex] = useState(0);
   const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
   const [optionForm, setOptionForm] = useState({
     step_id: "",
@@ -99,22 +105,88 @@ export default function AdminConfiguratorPage() {
   const [uploadingStepImage, setUploadingStepImage] = useState(false);
   const [uploadingOptionImage, setUploadingOptionImage] = useState<"image" | "preview" | "layer" | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [previewSelections, setPreviewSelections] = useState<Partial<Record<string, string>>>({});
+  const [layerOffsets, setLayerOffsets] = useState<Record<string, { x: number; y: number }>>({});
+  const [layerScales, setLayerScales] = useState<Record<string, number>>({});
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropModalImageSource, setCropModalImageSource] = useState<string | null>(null);
   const [cropModalOnSave, setCropModalOnSave] = useState<((url: string) => void) | null>(null);
+  const [cropModalBackgroundUrl, setCropModalBackgroundUrl] = useState<string | null>(null);
+  const [cropModalCapturing, setCropModalCapturing] = useState(false);
+  const [savingLayerTransforms, setSavingLayerTransforms] = useState(false);
+  const [layerSaveSuccess, setLayerSaveSuccess] = useState(false);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
 
-  const openCropModal = useCallback((file: File, onSave: (url: string) => void) => {
+  const openCropModalFromFile = useCallback((file: File, onSave: (url: string) => void) => {
+    setCropModalBackgroundUrl(null);
     setCropModalImageSource(URL.createObjectURL(file));
     setCropModalOnSave(() => onSave);
     setCropModalOpen(true);
     setUploadError(null);
   }, []);
 
+  const openCropModalFromUrl = useCallback((url: string, onSave: (url: string) => void) => {
+    if (!url) return;
+    setCropModalBackgroundUrl(null);
+    setCropModalImageSource(url);
+    setCropModalOnSave(() => onSave);
+    setCropModalOpen(true);
+    setUploadError(null);
+  }, []);
+
+  const openCropModalWithPreview = useCallback(
+    async (imageSource: string, onSave: (url: string) => void) => {
+      setCropModalOnSave(() => onSave);
+      setCropModalImageSource(imageSource);
+      setUploadError(null);
+      setCropModalCapturing(true);
+      try {
+        const el = previewContainerRef.current;
+        if (el) {
+          const canvas = await html2canvas(el, {
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: "#ffffff",
+            scale: 0.75,
+          });
+          setCropModalBackgroundUrl(canvas.toDataURL("image/png"));
+        } else {
+          setCropModalBackgroundUrl(null);
+        }
+      } catch {
+        setCropModalBackgroundUrl(null);
+      } finally {
+        setCropModalCapturing(false);
+        setCropModalOpen(true);
+      }
+    },
+    []
+  );
+
+  const openCropModalFromFileWithPreview = useCallback(
+    async (file: File, onSave: (url: string) => void) => {
+      const url = URL.createObjectURL(file);
+      await openCropModalWithPreview(url, onSave);
+    },
+    [openCropModalWithPreview]
+  );
+
+  const openCropModalFromUrlWithPreview = useCallback(
+    async (url: string, onSave: (url: string) => void) => {
+      if (!url) return;
+      await openCropModalWithPreview(url, onSave);
+    },
+    [openCropModalWithPreview]
+  );
+
   const closeCropModal = useCallback(() => {
     setCropModalOpen(false);
-    if (cropModalImageSource) URL.revokeObjectURL(cropModalImageSource);
+    if (cropModalImageSource && cropModalImageSource.startsWith("blob:")) {
+      URL.revokeObjectURL(cropModalImageSource);
+    }
     setCropModalImageSource(null);
     setCropModalOnSave(null);
+    setCropModalBackgroundUrl(null);
   }, [cropModalImageSource]);
 
   const handleCropSave = useCallback(
@@ -192,9 +264,76 @@ export default function AdminConfiguratorPage() {
     () => new Map(steps.map((s) => [s.id, s as ConfiguratorStepRow & { step_key?: string }])),
     [steps]
   );
+  const stepKeyToId = useMemo(
+    () => new Map(steps.filter((s) => (s as { step_key?: string }).step_key).map((s) => [(s as { step_key?: string }).step_key!, s.id])),
+    [steps]
+  );
 
-  /** Step IDs (and keys) for the selected watch type — same as customer sees */
-  const stepIdsForFunction = selectedFunctionId ? (functionStepsMap[selectedFunctionId] ?? []) : [];
+  /** Effective watch type: from preview selection, dropdown, or first option. Drives steps and options. */
+  const effectiveFunctionId = previewSelections.function ?? selectedFunctionId ?? functionOptions[0]?.id ?? "";
+
+  /** Load saved layer transforms when switching watch type */
+  useEffect(() => {
+    if (!effectiveFunctionId) return;
+    let cancelled = false;
+    getLayerTransformsForFunction(effectiveFunctionId).then((rows) => {
+      if (cancelled) return;
+      setLayerOffsets((prev) => {
+        const next = { ...prev };
+        rows.forEach((r) => {
+          next[`${effectiveFunctionId}:${r.step_key}`] = { x: r.offset_x, y: r.offset_y };
+        });
+        return next;
+      });
+      setLayerScales((prev) => {
+        const next = { ...prev };
+        rows.forEach((r) => {
+          next[`${effectiveFunctionId}:${r.step_key}`] = r.scale;
+        });
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveFunctionId]);
+
+  const handleSaveLayerTransforms = useCallback(async () => {
+    if (!effectiveFunctionId) return;
+    setSavingLayerTransforms(true);
+    try {
+      const prefix = `${effectiveFunctionId}:`;
+      const keys = new Set<string>([
+        ...Object.keys(layerOffsets).filter((k) => k.startsWith(prefix)),
+        ...Object.keys(layerScales).filter((k) => k.startsWith(prefix)),
+      ]);
+      const transforms: { step_id: string; offset_x: number; offset_y: number; scale: number }[] = [];
+      keys.forEach((key) => {
+        const stepKey = key.slice(prefix.length);
+        const stepId = stepKeyToId.get(stepKey);
+        if (!stepId) return;
+        const off = layerOffsets[key];
+        const scale = layerScales[key] ?? 1;
+        transforms.push({
+          step_id: stepId,
+          offset_x: off?.x ?? 0,
+          offset_y: off?.y ?? 0,
+          scale,
+        });
+      });
+      await setLayerTransforms(effectiveFunctionId, transforms);
+      setError(null);
+      setLayerSaveSuccess(true);
+      setTimeout(() => setLayerSaveSuccess(false), 4000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save layer positions");
+    } finally {
+      setSavingLayerTransforms(false);
+    }
+  }, [effectiveFunctionId, layerOffsets, layerScales, stepKeyToId]);
+
+  /** Step IDs (and keys) for the effective watch type — same as customer sees */
+  const stepIdsForFunction = effectiveFunctionId ? (functionStepsMap[effectiveFunctionId] ?? []) : [];
   const stepsForFunction = useMemo(() => {
     const keys = stepIdsForFunction
       .map((sid) => stepIdToMeta.get(sid)?.step_key)
@@ -202,23 +341,25 @@ export default function AdminConfiguratorPage() {
     return ["function", ...keys];
   }, [stepIdsForFunction, stepIdToMeta]);
 
+  /** Current step in the preview flow — derived from step index */
+  const currentStepKey = stepsForFunction[Math.min(previewStepIndex, stepsForFunction.length - 1)] ?? "function";
   const currentStepMeta = STEP_KEYS.find((s) => s.key === currentStepKey);
   const currentStepRow = steps.find((s) => (s as { step_key?: string }).step_key === currentStepKey);
   const currentStepId =
     currentStepKey === "function" ? functionStep?.id : stepIdsForFunction[stepsForFunction.indexOf(currentStepKey) - 1];
 
-  /** Options for current step filtered for selected function (same as customer) */
+  /** Options for current step filtered for effective function (same as customer) */
   const optionsForCurrentStep = useMemo(() => {
     if (!currentStepId) return currentStepKey === "function" ? functionOptions : [];
     return options.filter(
       (o) =>
         o.step_id === currentStepId &&
-        (o.parent_option_id === null || o.parent_option_id === selectedFunctionId)
+        (o.parent_option_id === null || o.parent_option_id === effectiveFunctionId)
     );
-  }, [options, currentStepId, currentStepKey, selectedFunctionId, functionOptions]);
+  }, [options, currentStepId, currentStepKey, effectiveFunctionId, functionOptions]);
 
   const caseAddons = caseStep ? addons.filter((a) => a.step_id === caseStep.id) : [];
-  const caseOptions = caseStep ? options.filter((o) => o.step_id === caseStep.id && (o.parent_option_id === null || o.parent_option_id === selectedFunctionId)) : [];
+  const caseOptions = caseStep ? options.filter((o) => o.step_id === caseStep.id && (o.parent_option_id === null || o.parent_option_id === effectiveFunctionId)) : [];
 
   const nextSortOrder = useMemo(() => {
     if (!steps.length) return 1;
@@ -269,7 +410,7 @@ export default function AdminConfiguratorPage() {
     try {
       await deleteConfiguratorStep(row.id);
       await load();
-      setCurrentStepKey("function");
+      setPreviewStepIndex(0);
       setEditingOptionId(null);
       setShowAddOption(false);
       setEditingFunctionStepsFor(null);
@@ -475,9 +616,12 @@ export default function AdminConfiguratorPage() {
             {isFr ? "Éditer comme" : "Editing as"}
           </span>
           <select
-            value={selectedFunctionId ?? ""}
+            value={effectiveFunctionId}
             onChange={(e) => {
-              setSelectedFunctionId(e.target.value || null);
+              const id = e.target.value || null;
+              setSelectedFunctionId(id);
+              setPreviewSelections((prev) => ({ ...prev, function: id ?? undefined }));
+              setPreviewStepIndex(0);
               setEditingOptionId(null);
               setShowAddOption(false);
               setEditingFunctionStepsFor(null);
@@ -558,17 +702,19 @@ export default function AdminConfiguratorPage() {
         </div>
       </div>
 
-      {/* Step bar – same steps and style as customer for selected watch type */}
+      {/* Step bar – preview flow: click step to jump; shows current step and completed steps */}
       <div className="border-b border-white/20 bg-[var(--logo-green)] px-6 py-4">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2 md:gap-4">
           {stepsForFunction.map((stepKey, i) => {
-            const isActive = currentStepKey === stepKey;
+            const isActive = previewStepIndex === i;
+            const hasSelection = !!previewSelections[stepKey];
+            const isCompleted = previewStepIndex > i || (previewStepIndex === i && hasSelection);
             return (
               <button
                 key={stepKey}
                 type="button"
                 onClick={() => {
-                  setCurrentStepKey(stepKey);
+                  setPreviewStepIndex(i);
                   setEditingOptionId(null);
                   setShowAddOption(false);
                   setEditingFunctionStepsFor(null);
@@ -579,14 +725,20 @@ export default function AdminConfiguratorPage() {
               >
                 <div
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded border-2 transition ${
-                    isActive ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-white/40 bg-white/10 text-white/80"
+                    isActive ? "border-[var(--accent)] bg-[var(--accent)] text-white" : isCompleted ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-white/40 bg-white/10 text-white/80"
                   }`}
                 >
-                  <span className="text-xs font-semibold">{i + 1}</span>
+                  {isCompleted && previewStepIndex > i ? (
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <span className="text-xs font-semibold">{i + 1}</span>
+                  )}
                 </div>
                 <span
                   className={`text-xs font-medium uppercase tracking-wider ${
-                    isActive ? "text-white" : "text-white/60"
+                    isActive ? "text-white" : isCompleted && previewStepIndex > i ? "text-white/80" : "text-white/60"
                   }`}
                 >
                   {stepLabelForBar(stepKey)}
@@ -680,7 +832,7 @@ export default function AdminConfiguratorPage() {
                     className="block max-w-[200px] text-xs text-foreground/70 file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) openCropModal(file, (url) => setStepForm((p) => ({ ...p, image_url: url })));
+                      if (file) openCropModalFromFile(file, (url) => setStepForm((p) => ({ ...p, image_url: url })));
                       e.target.value = "";
                     }}
                   />
@@ -690,6 +842,15 @@ export default function AdminConfiguratorPage() {
                     placeholder={isFr ? "Ou coller une URL" : "Or paste URL"}
                     className="min-w-[200px] flex-1 rounded-lg border border-foreground/20 px-3 py-2 text-sm"
                   />
+                  {stepForm.image_url && (
+                    <button
+                      type="button"
+                      onClick={() => openCropModalFromUrl(stepForm.image_url, (url) => setStepForm((p) => ({ ...p, image_url: url })))}
+                      className="rounded-lg border border-foreground/25 px-3 py-1.5 text-xs text-foreground hover:bg-foreground/5"
+                    >
+                      {isFr ? "Recadrer l'image" : "Crop image"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -718,10 +879,62 @@ export default function AdminConfiguratorPage() {
       </div>
 
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8 lg:flex-row lg:gap-12">
-        <div className="flex min-h-[320px] flex-1 items-center justify-center rounded-[var(--radius-xl)] border border-foreground/10 bg-white/70 shadow-[var(--shadow)] lg:min-h-[420px]">
-          <p className="max-w-xs text-center text-sm font-medium uppercase tracking-widest text-foreground/40">
-            {isFr ? "Aperçu · Ce que voient les clients" : "Preview · What customers see"}
-          </p>
+        <div className="flex flex-1 flex-col items-center gap-3">
+        <div
+          ref={previewContainerRef}
+          className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-xl)] border border-foreground/10 bg-white shadow-[var(--shadow)]"
+          style={{
+            width: CONFIGURATOR_PREVIEW_SIZE_PX,
+            height: CONFIGURATOR_PREVIEW_SIZE_PX,
+          }}
+        >
+          <WatchPreview
+            selections={previewSelections}
+            options={options as any}
+            stepsForFunction={stepsForFunction}
+            functionId={effectiveFunctionId}
+            stepIdsForFunction={stepIdsForFunction}
+            functionStepId={functionStep?.id}
+            isExtraStepForGmtOrSub={
+              stepsForFunction.includes("extra") &&
+              (previewSelections.function === "gmt" || previewSelections.function === "submariner")
+            }
+            extraStepImage="/images/configuratorextra.png"
+            locale={locale}
+            layerOffsets={layerOffsets}
+            onLayerOffsetChange={(key, offset) =>
+              setLayerOffsets((prev) => ({
+                ...prev,
+                [key]: offset,
+              }))
+            }
+            layerScales={layerScales}
+            onLayerScaleChange={(key, scale) =>
+              setLayerScales((prev) => ({
+                ...prev,
+                [key]: scale,
+              }))
+            }
+          />
+        </div>
+        <div className="flex flex-col items-start gap-2">
+          <button
+            type="button"
+            onClick={handleSaveLayerTransforms}
+            disabled={savingLayerTransforms || !effectiveFunctionId}
+            className="rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20 disabled:opacity-50"
+          >
+            {savingLayerTransforms ? "…" : isFr ? "Enregistrer les positions des calques" : "Save layer positions"}
+          </button>
+          {layerSaveSuccess && (
+            <span className="text-xs text-emerald-300">
+              {isFr ? "Positions enregistrées. Sur le configurateur public, choisissez le même type de montre (ex. Chrono), puis actualisez ou revenez sur l’onglet." : "Layer positions saved. On the public configurator, select the same watch type (e.g. Chronograph), then refresh or switch to that tab."}
+            </span>
+          )}
+          <span className="text-xs text-white/60">
+            {isFr ? "Déplacez et redimensionnez les calques sur l’aperçu, puis enregistrez pour que les clients les voient." : "Drag and resize layers on the preview, then save so customers see them."}
+          </span>
+        </div>
         </div>
 
         <div className="min-w-0 flex-1">
@@ -749,7 +962,7 @@ export default function AdminConfiguratorPage() {
                   className="block max-w-[180px] text-xs text-white/80 file:mr-2 file:rounded file:border-0 file:bg-white/20 file:px-2 file:py-1 file:text-xs file:text-white"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) openCropModal(file, (url) => setStepImageForm((p) => ({ ...p, image_url: url })));
+                    if (file) openCropModalFromFile(file, (url) => setStepImageForm((p) => ({ ...p, image_url: url })));
                     e.target.value = "";
                   }}
                 />
@@ -759,6 +972,15 @@ export default function AdminConfiguratorPage() {
                   placeholder="https://…"
                   className="w-64 rounded-lg border border-white/30 bg-white/10 px-2 py-1.5 text-sm text-white placeholder:text-white/50"
                 />
+                {stepImageForm.image_url && (
+                  <button
+                    type="button"
+                    onClick={() => openCropModalFromUrl(stepImageForm.image_url, (url) => setStepImageForm((p) => ({ ...p, image_url: url })))}
+                    className="rounded-full border border-white/40 bg-white/10 px-3 py-1.5 text-xs uppercase tracking-wide text-white hover:bg-white/20"
+                  >
+                    {isFr ? "Recadrer" : "Crop"}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSaveStepImage}
@@ -788,7 +1010,18 @@ export default function AdminConfiguratorPage() {
               return (
                 <div
                   key={opt.id}
-                  className={`flex flex-col items-center rounded-xl border-2 p-4 transition ${
+                  onClick={() => {
+                    setPreviewSelections((prev) => ({
+                      ...prev,
+                      [currentStepKey]: opt.id,
+                      ...(currentStepKey === "function" ? { function: opt.id } : {}),
+                    }));
+                    if (currentStepKey === "function") {
+                      setSelectedFunctionId(opt.id);
+                      setPreviewStepIndex(0);
+                    }
+                  }}
+                  className={`flex flex-col items-center rounded-xl border-2 p-4 transition cursor-pointer ${
                     isEditing ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-2 ring-[var(--accent)]/30" : "border-foreground/20 bg-white/80 shadow-[0_24px_90px_rgba(15,20,23,0.08)]"
                   }`}
                 >
@@ -825,7 +1058,8 @@ export default function AdminConfiguratorPage() {
                   <div className="mt-3 flex flex-wrap justify-center gap-2">
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setEditingOptionId(opt.id);
                         setUploadError(null);
                         setOptionForm({
@@ -848,11 +1082,25 @@ export default function AdminConfiguratorPage() {
                       {isFr ? "Modifier" : "Edit"}
                     </button>
                     {currentStepKey === "function" && (
-                      <button type="button" onClick={() => openEditFunctionSteps(opt.id)} className="rounded-full border border-foreground/20 bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-foreground hover:bg-foreground/5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditFunctionSteps(opt.id);
+                        }}
+                        className="rounded-full border border-foreground/20 bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-foreground hover:bg-foreground/5"
+                      >
                         {isFr ? "Étapes" : "Steps"}
                       </button>
                     )}
-                    <button type="button" onClick={() => handleDeleteOption(opt.id)} className="rounded-full border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteOption(opt.id);
+                      }}
+                      className="rounded-full border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                    >
                       {isFr ? "Suppr." : "Delete"}
                     </button>
                   </div>
@@ -877,13 +1125,33 @@ export default function AdminConfiguratorPage() {
             ) : currentStepRow ? (
               <button
                 type="button"
-                onClick={() => { setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: currentStepRow.id, parent_option_id: selectedFunctionId, label_en: "", label_fr: "", letter: "A", price: 0, discount_percent: 0, image_url: "", preview_image_url: "", layer_image_url: "", layer_z_index: 0 }); }}
+                onClick={() => { setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: currentStepRow.id, parent_option_id: effectiveFunctionId || null, label_en: "", label_fr: "", letter: "A", price: 0, discount_percent: 0, image_url: "", preview_image_url: "", layer_image_url: "", layer_z_index: 0 }); }}
                 className="flex min-h-[140px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-foreground/30 bg-white/60 p-4 text-foreground/60 transition hover:border-foreground/50 hover:bg-white/80 hover:text-foreground/80"
               >
                 <span className="text-2xl">+</span>
                 <span className="mt-1 text-sm font-medium">{isFr ? "Option" : "Option"}</span>
               </button>
             ) : null}
+          </div>
+
+          {/* Preview flow: Back / Next — like the real configurator */}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={() => setPreviewStepIndex((i) => Math.max(0, i - 1))}
+              disabled={previewStepIndex === 0}
+              className="rounded-lg border border-white/30 bg-transparent px-5 py-2.5 text-sm font-medium text-white/90 transition hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← {isFr ? "Retour" : "Back"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewStepIndex((i) => Math.min(stepsForFunction.length - 1, i + 1))}
+              disabled={previewStepIndex >= stepsForFunction.length - 1}
+              className="rounded-lg bg-foreground px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {previewStepIndex >= stepsForFunction.length - 1 ? (isFr ? "Dernière étape" : "Last step") : `${isFr ? "Suivant" : "Next"} →`}
+            </button>
           </div>
 
           {editingFunctionStepsFor && (
@@ -1109,7 +1377,7 @@ export default function AdminConfiguratorPage() {
                       className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) openCropModal(file, (url) => setOptionForm((p) => ({ ...p, image_url: url })));
+                        if (file) openCropModalFromFileWithPreview(file, (url) => setOptionForm((p) => ({ ...p, image_url: url })));
                         e.target.value = "";
                       }}
                     />
@@ -1119,6 +1387,16 @@ export default function AdminConfiguratorPage() {
                       placeholder={isFr ? "Ou URL" : "Or URL"}
                       className="min-w-[200px] flex-1 rounded-lg border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-neutral-500"
                     />
+                    {optionForm.image_url && (
+                      <button
+                        type="button"
+                        disabled={cropModalCapturing}
+                        onClick={() => openCropModalFromUrlWithPreview(optionForm.image_url, (url) => setOptionForm((p) => ({ ...p, image_url: url })))}
+                        className="rounded-lg border border-foreground/25 px-3 py-1.5 text-xs text-foreground hover:bg-foreground/5"
+                      >
+                        {cropModalCapturing ? (isFr ? "Capture…" : "Capturing…") : isFr ? "Recadrer l'image" : "Crop image"}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="sm:col-span-2">
@@ -1130,7 +1408,7 @@ export default function AdminConfiguratorPage() {
                       className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) openCropModal(file, (url) => setOptionForm((p) => ({ ...p, preview_image_url: url })));
+                        if (file) openCropModalFromFileWithPreview(file, (url) => setOptionForm((p) => ({ ...p, preview_image_url: url })));
                         e.target.value = "";
                       }}
                     />
@@ -1140,11 +1418,21 @@ export default function AdminConfiguratorPage() {
                       placeholder={isFr ? "Ou URL" : "Or URL"}
                       className="min-w-[200px] flex-1 rounded-lg border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-neutral-500"
                     />
+                    {optionForm.preview_image_url && (
+                      <button
+                        type="button"
+                        disabled={cropModalCapturing}
+                        onClick={() => openCropModalFromUrlWithPreview(optionForm.preview_image_url, (url) => setOptionForm((p) => ({ ...p, preview_image_url: url })))}
+                        className="rounded-lg border border-foreground/25 px-3 py-1.5 text-xs text-foreground hover:bg-foreground/5"
+                      >
+                        {cropModalCapturing ? (isFr ? "Capture…" : "Capturing…") : isFr ? "Recadrer l'image" : "Crop image"}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="text-xs font-medium uppercase tracking-wider text-foreground">{isFr ? "Image couche (aperçu composite)" : "Layer image (composite preview)"}</label>
-                  <p className="mt-0.5 text-xs text-foreground/60">{isFr ? "PNG transparent pour superposition. 0=base, 10=cadran, 20=boîtier, 30=aiguilles, 40=bracelet." : "Transparent PNG for stacking. Use for composite watch preview."}</p>
+                  <p className="mt-0.5 text-xs text-foreground/60">{isFr ? "PNG transparent pour superposition. 0=base, 10=cadran, 20=boîtier, 30=aiguilles, 40=bracelet. Si le fond est noir, le configurateur tente de le rendre transparent." : "Transparent PNG for stacking. If the image has a black background instead of transparency, the preview will treat black as transparent."}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <input
                       type="file"
@@ -1152,7 +1440,7 @@ export default function AdminConfiguratorPage() {
                       className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) openCropModal(file, (url) => setOptionForm((p) => ({ ...p, layer_image_url: url })));
+                        if (file) openCropModalFromFileWithPreview(file, (url) => setOptionForm((p) => ({ ...p, layer_image_url: url })));
                         e.target.value = "";
                       }}
                     />
@@ -1162,6 +1450,16 @@ export default function AdminConfiguratorPage() {
                       placeholder={isFr ? "Ou URL" : "Or URL"}
                       className="min-w-[200px] flex-1 rounded-lg border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-neutral-500"
                     />
+                    {optionForm.layer_image_url && (
+                      <button
+                        type="button"
+                        disabled={cropModalCapturing}
+                        onClick={() => openCropModalFromUrlWithPreview(optionForm.layer_image_url, (url) => setOptionForm((p) => ({ ...p, layer_image_url: url })))}
+                        className="rounded-lg border border-foreground/25 px-3 py-1.5 text-xs text-foreground hover:bg-foreground/5"
+                      >
+                        {cropModalCapturing ? (isFr ? "Capture…" : "Capturing…") : isFr ? "Recadrer l'image" : "Crop image"}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -1219,6 +1517,9 @@ export default function AdminConfiguratorPage() {
         onUpload={uploadProductImage}
         label={isFr ? "Image configurateur" : "Configurator image"}
         locale={locale}
+        backgroundImageUrl={cropModalBackgroundUrl}
+        minZoom={0.3}
+        maxZoom={3}
       />
     </div>
   );

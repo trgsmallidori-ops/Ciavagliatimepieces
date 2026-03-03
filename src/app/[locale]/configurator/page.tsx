@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Configurator from "@/components/Configurator";
+import { getPublicConfiguratorData } from "@/app/[locale]/account/admin/actions";
 import { Locale } from "@/lib/i18n";
 
 export async function generateMetadata({
@@ -29,10 +30,11 @@ export default async function ConfiguratorPage({
 }) {
   const { locale } = await params;
   const { edit: editCartItemId } = await searchParams;
+  const initialConfigData = await getPublicConfiguratorData();
 
   return (
     <section className="min-h-screen bg-[var(--logo-green)]">
-      <Configurator locale={locale} editCartItemId={editCartItemId ?? undefined} />
+      <Configurator locale={locale} editCartItemId={editCartItemId ?? undefined} initialData={initialConfigData} />
     </section>
   );
 }

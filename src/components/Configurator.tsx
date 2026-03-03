@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { WatchPreview } from "@/components/WatchPreview";
+import { CONFIGURATOR_PREVIEW_SIZE_PX } from "@/lib/configurator-constants";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrency } from "@/components/CurrencyContext";
@@ -20,12 +21,18 @@ type ConfigShape = {
   addonIds?: string[];
 };
 
-export default function Configurator({ locale, editCartItemId }: { locale: string; editCartItemId?: string }) {
+type ConfiguratorProps = {
+  locale: string;
+  editCartItemId?: string;
+  initialData?: Awaited<ReturnType<typeof getPublicConfiguratorData>> | null;
+};
+
+export default function Configurator({ locale, editCartItemId, initialData }: ConfiguratorProps) {
   const isFr = locale === "fr";
   const router = useRouter();
   const { currency, formatPrice } = useCurrency();
-  const [configData, setConfigData] = useState<Awaited<ReturnType<typeof getPublicConfiguratorData>>>(null);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [configData, setConfigData] = useState<Awaited<ReturnType<typeof getPublicConfiguratorData>> | null>(initialData ?? null);
+  const [dataLoading, setDataLoading] = useState(!initialData);
   const [editLoadDone, setEditLoadDone] = useState(false);
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -37,7 +44,15 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
   const [addToCartLoading, setAddToCartLoading] = useState(false);
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
 
+  const fetchConfigData = useCallback(() => {
+    getPublicConfiguratorData().then((data) => {
+      setConfigData(data);
+      setDataLoading(false);
+    });
+  }, []);
+
   useEffect(() => {
+    if (initialData != null) return;
     let cancelled = false;
     getPublicConfiguratorData().then((data) => {
       if (!cancelled) {
@@ -48,7 +63,14 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialData]);
+
+  // Refetch when tab gains focus so layer positions saved in admin appear without full reload
+  useEffect(() => {
+    const onFocus = () => fetchConfigData();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [fetchConfigData]);
 
   useEffect(() => {
     if (editCartItemId) setEditLoadDone(false);
@@ -110,6 +132,7 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
   const functionStepsMap = configData?.functionStepsMap ?? {};
   const options = configData?.options ?? [];
   const addons = configData?.addons ?? [];
+  const layerTransformsByFunction = configData?.layerTransformsByFunction ?? {};
 
   const functionStep = useMemo(() => stepsMeta.find((s) => s.step_key === "function"), [stepsMeta]);
   const stepIdToMeta = useMemo(() => new Map(stepsMeta.map((s) => [s.id, s])), [stepsMeta]);
@@ -122,6 +145,25 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
       .filter((k): k is string => !!k);
     return ["function", ...keys];
   }, [stepIdsForFunction, stepIdToMeta]);
+
+  const publicLayerOffsets = useMemo(() => {
+    const rows = layerTransformsByFunction[functionId] ?? [];
+    const out: Record<string, { x: number; y: number }> = {};
+    rows.forEach((r) => {
+      const key = `${functionId}:${r.step_key}`;
+      out[key] = { x: r.offset_x, y: r.offset_y };
+    });
+    return out;
+  }, [functionId, layerTransformsByFunction]);
+  const publicLayerScales = useMemo(() => {
+    const rows = layerTransformsByFunction[functionId] ?? [];
+    const out: Record<string, number> = {};
+    rows.forEach((r) => {
+      const key = `${functionId}:${r.step_key}`;
+      out[key] = r.scale;
+    });
+    return out;
+  }, [functionId, layerTransformsByFunction]);
 
   const currentStepKey = stepsForFunction[stepIndex] ?? "function";
   const currentStepMeta = stepsForFunction[stepIndex] === "function"
@@ -476,21 +518,38 @@ export default function Configurator({ locale, editCartItemId }: { locale: strin
       </div>
 
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8 lg:flex-row lg:gap-12">
-        <div className="relative flex min-h-[320px] flex-1 items-center justify-center overflow-hidden rounded-[var(--radius-xl)] border border-foreground/10 bg-white shadow-[var(--shadow)] lg:min-h-[420px]">
-          <WatchPreview
-            selections={selections}
-            options={options}
-            stepsForFunction={stepsForFunction}
-            functionId={functionId}
-            stepIdsForFunction={stepIdsForFunction}
-            functionStepId={functionStep?.id}
-            isExtraStepForGmtOrSub={
-              (currentStepKey === "extra" || stepsForFunction.includes("extra")) &&
-              (functionId === "gmt" || functionId === "submariner")
-            }
-            extraStepImage="/images/configuratorextra.png"
-            locale={locale}
-          />
+        <div className="flex flex-1 flex-col items-center gap-2">
+          <div
+            className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-xl)] border border-foreground/10 bg-white shadow-[var(--shadow)]"
+            style={{
+              width: CONFIGURATOR_PREVIEW_SIZE_PX,
+              height: CONFIGURATOR_PREVIEW_SIZE_PX,
+            }}
+          >
+            <WatchPreview
+              selections={selections}
+              options={options}
+              stepsForFunction={stepsForFunction}
+              functionId={functionId}
+              stepIdsForFunction={stepIdsForFunction}
+              functionStepId={functionStep?.id}
+              isExtraStepForGmtOrSub={
+                (currentStepKey === "extra" || stepsForFunction.includes("extra")) &&
+                (functionId === "gmt" || functionId === "submariner")
+              }
+              extraStepImage="/images/configuratorextra.png"
+              locale={locale}
+              layerOffsets={publicLayerOffsets}
+              layerScales={publicLayerScales}
+            />
+          </div>
+          {functionId && stepsForFunction.length > 1 && (layerTransformsByFunction[functionId]?.length ?? 0) === 0 && (
+            <p className="text-center text-sm text-white/80">
+              {isFr
+                ? "Aperçu non aligné pour ce type de montre. Alignez les calques dans Admin → Configurateur puis cliquez sur « Enregistrer les positions des calques »."
+                : "Preview alignment not saved for this watch type. In Admin → Configurator, drag layers into place and click \"Save layer positions\"."}
+            </p>
+          )}
         </div>
 
         <div className="min-w-0 flex-1">

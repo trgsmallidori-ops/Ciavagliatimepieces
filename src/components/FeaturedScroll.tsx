@@ -161,7 +161,7 @@ export default function FeaturedScroll({
         />
       </div>
 
-      <div className="sticky top-0 h-[100vh] w-full overflow-hidden">
+      <div className="sticky top-0 z-0 isolate h-[100vh] w-full overflow-hidden">
         {items.map((slide, index) => (
           <FeaturedSlideLayer
             key={slide.id}
@@ -237,7 +237,7 @@ function FeaturedSlideLayer({
   else if (slideIndex === currentIndex) slideY = -100 * ease;
   else slideY = 0;
 
-  const isInteractive = isCurrentSlide || (scrollProgress >= slideIndex && scrollProgress < slideIndex + 1);
+  const isInteractive = isCurrentSlide;
 
   const continueLabel = locale === "fr" ? CONTINUE_FR : CONTINUE_EN;
 
@@ -245,7 +245,7 @@ function FeaturedSlideLayer({
     <div
       className="absolute inset-0 w-full h-full"
       style={{
-        zIndex: isCurrentSlide ? totalSlides : slideIndex,
+        zIndex: isCurrentSlide ? totalSlides : (slideIndex === currentIndex + 1 ? totalSlides - 1 : slideIndex),
         transform: `translate3d(0, ${slideY}%, 0)`,
         ...(isCurrentSlide || slideIndex === currentIndex + 1 ? { willChange: "transform" as const } : {}),
         pointerEvents: isInteractive ? "auto" : "none",
@@ -268,8 +268,8 @@ function FeaturedSlideLayer({
         {/* Subtle dark overlay for text readability – no pointer events so buttons stay clickable */}
         <div className="pointer-events-none absolute inset-0 bg-black/25" aria-hidden />
 
-        {/* Text overlay – centered on top of image */}
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 py-24 text-center text-white">
+        {/* Text overlay – centered on top of image; explicit pointer-events and z-index so buttons are always clickable */}
+        <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col items-center justify-center px-6 py-24 text-center text-white">
           {showWelcome && (
             <p className="text-xs font-medium uppercase tracking-[0.35em] text-white/95 drop-shadow-md">
               {locale === "fr" ? WELCOME_FR : WELCOME_EN}
@@ -288,7 +288,7 @@ function FeaturedSlideLayer({
               {description}
             </p>
           )}
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
+          <div className="mt-8 flex flex-wrap justify-center gap-4 [&_a]:cursor-pointer [&_a]:touch-manipulation [&_a]:relative [&_a]:z-10">
             {purchaseUrl ? (
               <Link
                 href={purchaseUrl}
