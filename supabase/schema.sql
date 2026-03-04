@@ -171,6 +171,19 @@ create table if not exists configurator_function_steps (
   primary key (function_option_id, step_id)
 );
 
+-- Dropdown sub-options for configurator options (e.g. Case colour can have "Polished", "Brushed"). Admin can add to any step/option.
+create table if not exists configurator_dropdown_items (
+  id uuid primary key default gen_random_uuid(),
+  option_id uuid not null references configurator_options(id) on delete cascade,
+  label_en text not null,
+  label_fr text not null,
+  price numeric not null default 0,
+  sort_order int not null default 0,
+  image_url text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 alter table watch_categories enable row level security;
 alter table featured_slides enable row level security;
 alter table configurator_steps enable row level security;
@@ -178,6 +191,7 @@ alter table configurator_options enable row level security;
 alter table configurator_addons enable row level security;
 alter table configurator_addon_options enable row level security;
 alter table configurator_function_steps enable row level security;
+alter table configurator_dropdown_items enable row level security;
 alter table products enable row level security;
 alter table product_images enable row level security;
 alter table journal_posts enable row level security;
@@ -261,6 +275,10 @@ create policy "Anyone can view configurator addon options" on configurator_addon
 
 drop policy if exists "Anyone can view configurator function steps" on configurator_function_steps;
 create policy "Anyone can view configurator function steps" on configurator_function_steps
+  for select using (true);
+
+drop policy if exists "Anyone can view configurator dropdown items" on configurator_dropdown_items;
+create policy "Anyone can view configurator dropdown items" on configurator_dropdown_items
   for select using (true);
 
 drop policy if exists "Anyone can view journal posts" on journal_posts;

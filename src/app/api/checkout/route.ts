@@ -48,16 +48,18 @@ function getBuiltProductConfigDescription(
 
 /** Build a human-readable list of parts for a custom build (for Stripe product description).
  * config.steps = [functionOptionId, ...optionIds in step order].
+ * config.dropdownSelections = optional { optionId: dropdownItemId } for dropdown sub-options.
  * Uses label_en or label_fr based on locale.
  */
 async function getCustomBuildPartsSummary(
   supabase: ReturnType<typeof createServerClient>,
-  config: { steps?: unknown[]; extras?: unknown[]; addonIds?: unknown[] },
+  config: { steps?: unknown[]; extras?: unknown[]; addonIds?: unknown[]; dropdownSelections?: Record<string, string> },
   locale: "en" | "fr"
 ): Promise<string> {
   const stepsPayload = Array.isArray(config.steps) ? config.steps : [];
   const extras = Array.isArray(config.extras) ? config.extras : [];
   const addonIds = Array.isArray(config.addonIds) ? config.addonIds : [];
+  const dropdownSelections = config.dropdownSelections && typeof config.dropdownSelections === "object" ? config.dropdownSelections : {};
   const labelKey = locale === "fr" ? "label_fr" : "label_en";
 
   const functionOptionId = stepsPayload[0] && typeof stepsPayload[0] === "string" ? stepsPayload[0] : null;
@@ -100,7 +102,14 @@ async function getCustomBuildPartsSummary(
     } else if (selectedOptionId) {
       const { data: opt } = await supabase.from("configurator_options").select("label_en, label_fr").eq("id", selectedOptionId).single();
       const optLabel = (opt as Record<string, string> | null)?.[labelKey] ?? "";
-      if (optLabel) parts.push(`${stepLabel}: ${optLabel}`);
+      const dropdownItemId = dropdownSelections[selectedOptionId];
+      let partLine = optLabel ? `${stepLabel}: ${optLabel}` : "";
+      if (dropdownItemId && typeof dropdownItemId === "string") {
+        const { data: ddRow } = await supabase.from("configurator_dropdown_items").select("label_en, label_fr").eq("id", dropdownItemId).single();
+        const ddLabel = (ddRow as Record<string, string> | null)?.[labelKey];
+        if (ddLabel) partLine += ` → ${ddLabel}`;
+      }
+      if (partLine) parts.push(partLine);
     }
   }
 
@@ -119,14 +128,16 @@ async function getCustomBuildPartsSummary(
 /** Calculate custom build total from DB only (do not trust client price).
  * config.steps = [functionOptionId, ...optionIds in step order for that function].
  * config.extras = optional extra-step option ids; config.addonIds = addon UUIDs (e.g. Frosted Finish).
+ * config.dropdownSelections = optional { optionId: dropdownItemId } for options that have dropdown menus.
  */
 async function calculateCustomBuildPrice(
   supabase: ReturnType<typeof createServerClient>,
-  config: { steps?: unknown[]; extras?: unknown[]; addonIds?: unknown[] }
+  config: { steps?: unknown[]; extras?: unknown[]; addonIds?: unknown[]; dropdownSelections?: Record<string, string> }
 ): Promise<number> {
   const stepsPayload = Array.isArray(config.steps) ? config.steps : [];
   const extras = Array.isArray(config.extras) ? config.extras : [];
   const addonIds = Array.isArray(config.addonIds) ? config.addonIds : [];
+  const dropdownSelections = config.dropdownSelections && typeof config.dropdownSelections === "object" ? config.dropdownSelections : {};
 
   const functionOptionId = stepsPayload[0] && typeof stepsPayload[0] === "string" ? stepsPayload[0] : null;
   if (!functionOptionId) return 0;
@@ -171,6 +182,15 @@ async function calculateCustomBuildPrice(
     } else if (selectedOptionId && typeof selectedOptionId === "string" && selectedOptionId) {
       const opt = options?.find((o: { id: string }) => o.id === selectedOptionId);
       if (opt) total += effectivePrice(opt as { price: number; discount_percent?: number | null });
+      const dropdownItemId = dropdownSelections[selectedOptionId];
+      if (dropdownItemId && typeof dropdownItemId === "string") {
+        const { data: ddRow } = await supabase
+          .from("configurator_dropdown_items")
+          .select("price")
+          .eq("id", dropdownItemId)
+          .single();
+        if (ddRow && typeof (ddRow as { price?: number }).price === "number") total += Number((ddRow as { price: number }).price);
+      }
     }
   }
 
@@ -259,6 +279,7 @@ export async function POST(request: NextRequest) {
         steps: Array.isArray(cfg.steps) ? cfg.steps : [],
         extras: Array.isArray(cfg.extras) ? cfg.extras : [],
         addonIds: Array.isArray(cfg.addonIds) ? cfg.addonIds : [],
+        dropdownSelections: cfg.dropdownSelections && typeof cfg.dropdownSelections === "object" ? (cfg.dropdownSelections as Record<string, string>) : undefined,
       });
       if (amount === 0 && typeof cfg.price === "number" && cfg.price > 0) {
         amount = cfg.price;
@@ -278,6 +299,7 @@ export async function POST(request: NextRequest) {
         steps: Array.isArray(cfg.steps) ? cfg.steps : [],
         extras: Array.isArray(cfg.extras) ? cfg.extras : [],
         addonIds: Array.isArray(cfg.addonIds) ? cfg.addonIds : [],
+        dropdownSelections: cfg.dropdownSelections && typeof cfg.dropdownSelections === "object" ? (cfg.dropdownSelections as Record<string, string>) : undefined,
       }, localeSegment);
 
       const { data, error } = await supabase
@@ -476,6 +498,7 @@ export async function POST(request: NextRequest) {
               steps: Array.isArray(cfg?.steps) ? cfg.steps : [],
               extras: Array.isArray(cfg?.extras) ? cfg.extras : [],
               addonIds: Array.isArray(cfg?.addonIds) ? cfg.addonIds : [],
+              dropdownSelections: cfg?.dropdownSelections && typeof cfg.dropdownSelections === "object" ? (cfg.dropdownSelections as Record<string, string>) : undefined,
             });
             if (serverPrice > 0) {
               lineItems.push({

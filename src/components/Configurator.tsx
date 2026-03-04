@@ -19,6 +19,10 @@ type ConfigShape = {
   steps?: string[];
   extras?: string[];
   addonIds?: string[];
+  /** Option id -> selected dropdown item id (for options that have dropdown menus). */
+  dropdownSelections?: Record<string, string>;
+  /** Human-readable lines for cart/checkout display (label + price). */
+  summaryLines?: { label: string; price: number }[];
 };
 
 type ConfiguratorProps = {
@@ -37,6 +41,8 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
 
   const [stepIndex, setStepIndex] = useState(0);
   const [selections, setSelections] = useState<Partial<Record<string, string>>>({});
+  /** For options that have dropdown items: optionId -> selected dropdown item id. */
+  const [dropdownSelections, setDropdownSelections] = useState<Record<string, string>>({});
   const [addonChecked, setAddonChecked] = useState<Record<string, boolean>>({});
   const [totalExpanded, setTotalExpanded] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -117,8 +123,10 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
       addonIds.forEach((id) => {
         if (typeof id === "string") nextAddons[id] = true;
       });
+      const nextDropdowns = (config.dropdownSelections && typeof config.dropdownSelections === "object") ? config.dropdownSelections as Record<string, string> : {};
       setSelections(nextSelections);
       setAddonChecked(nextAddons);
+      setDropdownSelections(nextDropdowns);
       setStepIndex(0);
       setEditLoadDone(true);
     })();
@@ -194,21 +202,36 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
           delete next[currentStepKey];
           return next;
         });
+        setDropdownSelections((prev) => {
+          const next = { ...prev };
+          const opt = optionsForCurrentStep.find((o) => o.id === (selections[currentStepKey] ?? ""));
+          if (opt && (opt as { dropdownItems?: { id: string }[] }).dropdownItems?.length) delete next[opt.id];
+          return next;
+        });
         return;
       }
+      const opt = optionsForCurrentStep.find((o) => o.id === optionId);
+      const dropdownItems = (opt as { dropdownItems?: { id: string }[] } | undefined)?.dropdownItems;
       setSelections((prev) => {
         const next = { ...prev, [currentStepKey]: optionId };
         if (currentStepKey === "function") {
           setAddonChecked({});
+          setDropdownSelections({});
           return { function: optionId };
         }
         return next;
       });
+      if (dropdownItems?.length && currentStepKey !== "function") {
+        setDropdownSelections((prev) => {
+          if (prev[optionId]) return prev;
+          return { ...prev, [optionId]: dropdownItems[0].id };
+        });
+      }
       if (currentStepKey === "function") {
         setStepIndex(0);
       }
     },
-    [currentStepKey]
+    [currentStepKey, optionsForCurrentStep, selections]
   );
 
   const optionEffectivePrice = (o: { price: number; discount_percent?: number }) => {
@@ -230,13 +253,21 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
           (o.parent_option_id === null || o.parent_option_id === functionId)
       );
       const o = opts.find((x) => x.id === id);
-      if (o) t += optionEffectivePrice(o);
+      if (o) {
+        t += optionEffectivePrice(o);
+        const dropdownItems = (o as { dropdownItems?: { id: string; price: number }[] }).dropdownItems;
+        const dropdownId = dropdownSelections[o.id];
+        if (dropdownItems?.length && dropdownId) {
+          const dd = dropdownItems.find((d) => d.id === dropdownId);
+          if (dd) t += Number(dd.price ?? 0);
+        }
+      }
     });
     addons.forEach((addon) => {
       if (addonChecked[addon.id]) t += addon.price;
     });
     return t;
-  }, [stepsForFunction, selections, functionId, functionStep?.id, stepIdsForFunction, options, addons, addonChecked]);
+  }, [stepsForFunction, selections, dropdownSelections, functionId, functionStep?.id, stepIdsForFunction, options, addons, addonChecked]);
 
   const discountPercent = configData?.configuratorDiscountPercent ?? 0;
   const displayTotal = discountPercent > 0 ? total * (1 - discountPercent / 100) : total;
@@ -284,6 +315,8 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
             steps: stepsPayload,
             extras,
             addonIds: addonIdsPayload,
+            dropdownSelections: Object.keys(dropdownSelections).length ? dropdownSelections : undefined,
+            summaryLines: totalLineItems.length ? totalLineItems : undefined,
             price: total,
           },
         }),
@@ -309,6 +342,7 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
     if (editCartItemId) router.replace(`/${locale}/configurator`);
     setStepIndex(0);
     setSelections({});
+    setDropdownSelections({});
     setAddonChecked({});
   };
 
@@ -327,6 +361,8 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
         steps: stepsPayload,
         extras: stepsForFunction.includes("extra") && selections.extra ? [selections.extra] : [],
         addonIds: addonIdsPayload,
+        dropdownSelections: Object.keys(dropdownSelections).length ? dropdownSelections : undefined,
+        summaryLines: totalLineItems.length ? totalLineItems : undefined,
       };
 
       if (!user) {
@@ -416,7 +452,19 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
           (o.parent_option_id === null || o.parent_option_id === functionId)
       );
       const o = opts.find((x) => x.id === id);
-      if (o) lines.push({ label: `${stepLabel}: ${isFr ? o.label_fr : o.label_en}`, price: optionEffectivePrice(o) });
+      if (o) {
+        const optionLabel = isFr ? o.label_fr : o.label_en;
+        const dropdownItems = (o as { dropdownItems?: { id: string; label_en: string; label_fr: string; price: number }[] }).dropdownItems;
+        const dropdownId = dropdownSelections[o.id];
+        const dropdownItem = dropdownItems?.find((d) => d.id === dropdownId);
+        if (dropdownItem) {
+          const ddLabel = isFr ? dropdownItem.label_fr : dropdownItem.label_en;
+          lines.push({ label: `${stepLabel}: ${optionLabel} → ${ddLabel}`, price: optionEffectivePrice(o) });
+          lines.push({ label: `  ${ddLabel}`, price: Number(dropdownItem.price ?? 0) });
+        } else {
+          lines.push({ label: `${stepLabel}: ${optionLabel}`, price: optionEffectivePrice(o) });
+        }
+      }
     });
     addons.forEach((addon) => {
       if (addonChecked[addon.id]) {
@@ -425,7 +473,7 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
       }
     });
     return lines;
-  }, [stepsForFunction, selections, functionId, functionStep?.id, stepIdsForFunction, options, addons, addonChecked, isFr, stepIdToMeta]);
+  }, [stepsForFunction, selections, dropdownSelections, functionId, functionStep?.id, stepIdsForFunction, options, addons, addonChecked, isFr, stepIdToMeta]);
 
   const caseAddons = useMemo(() => {
     const caseStepId = stepsMeta.find((s) => s.step_key === "case")?.id;
@@ -625,6 +673,48 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
               );
             })}
           </div>
+
+          {selectedId && (() => {
+            const selectedOpt = optionsForCurrentStep.find((o) => o.id === selectedId);
+            const dropdownItems = (selectedOpt as { dropdownItems?: { id: string; label_en: string; label_fr: string; price: number; image_url?: string | null }[] } | undefined)?.dropdownItems;
+            if (!dropdownItems?.length) return null;
+            const selectedDropdownId = dropdownSelections[selectedId] ?? dropdownItems[0]?.id;
+            const selectedDropdownItem = dropdownItems.find((d) => d.id === selectedDropdownId);
+            const selectedImageUrl = selectedDropdownItem && typeof (selectedDropdownItem as { image_url?: string | null }).image_url === "string" ? (selectedDropdownItem as { image_url: string }).image_url : null;
+            return (
+              <div className="mt-6 rounded-xl border border-foreground/15 bg-white/90 p-4 shadow-[0_24px_90px_rgba(15,20,23,0.06)]">
+                <label className="block text-sm font-medium text-foreground">
+                  {isFr ? "Option supplémentaire" : "Additional option"}
+                </label>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <select
+                    value={selectedDropdownId}
+                    onChange={(e) => setDropdownSelections((prev) => ({ ...prev, [selectedId]: e.target.value }))}
+                    className="w-full max-w-xs rounded-lg border border-foreground/25 bg-white px-3 py-2 text-foreground focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                  >
+                    {dropdownItems.map((dd) => (
+                      <option key={dd.id} value={dd.id}>
+                        {isFr ? dd.label_fr : dd.label_en}
+                        {Number(dd.price ?? 0) > 0 ? ` (+${formatPrice(Number(dd.price))})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedImageUrl && (
+                    <span className="relative flex h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-foreground/15 bg-white">
+                      <Image
+                        src={selectedImageUrl}
+                        alt=""
+                        width={56}
+                        height={56}
+                        className="h-full w-full object-cover"
+                        unoptimized={selectedImageUrl.startsWith("http")}
+                      />
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {currentStepKey === "case" && showFrostedForSelectedCase.length > 0 && (
             <div className="mt-8 space-y-4">

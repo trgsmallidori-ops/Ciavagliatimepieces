@@ -31,11 +31,16 @@ import {
   getLayerTransformsForFunction,
   setLayerTransforms,
   setLayerTransformForStep,
+  getDropdownItemsForOption,
+  createDropdownItem,
+  updateDropdownItem,
+  deleteDropdownItem,
 } from "../actions";
 import type {
   ConfiguratorStepRow,
   ConfiguratorOptionRow,
   ConfiguratorAddonRow,
+  ConfiguratorDropdownItemRow,
 } from "../actions";
 
 const STEP_KEYS: { key: string; labelEn: string; labelFr: string }[] = [
@@ -125,6 +130,12 @@ export default function AdminConfiguratorPage() {
   const [layerSaveSuccess, setLayerSaveSuccess] = useState(false);
   /** Last layer key that was moved/resized (e.g. "functionId:step_key"). Used for "Save this layer only". */
   const [lastEditedLayerKey, setLastEditedLayerKey] = useState<string | null>(null);
+  /** Dropdown items for the option currently being edited (when admin adds a dropdown menu to an option). */
+  const [dropdownItemsForOption, setDropdownItemsForOption] = useState<ConfiguratorDropdownItemRow[]>([]);
+  const [dropdownItemForm, setDropdownItemForm] = useState({ label_en: "", label_fr: "", price: 0, image_url: "" });
+  const [editingDropdownItemId, setEditingDropdownItemId] = useState<string | null>(null);
+  const [showAddDropdownItem, setShowAddDropdownItem] = useState(false);
+  const [dropdownItemLoading, setDropdownItemLoading] = useState(false);
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   const openCropModalFromFile = useCallback((file: File, onSave: (url: string) => void) => {
@@ -518,6 +529,87 @@ export default function AdminConfiguratorPage() {
     const row = currentStepRow as (ConfiguratorStepRow & { image_url?: string }) | undefined;
     setStepImageForm({ image_url: row?.image_url ?? "" });
   }, [currentStepRow?.id, (currentStepRow as { image_url?: string })?.image_url]);
+
+  useEffect(() => {
+    if (!editingOptionId) {
+      setDropdownItemsForOption([]);
+      setShowAddDropdownItem(false);
+      setEditingDropdownItemId(null);
+      return;
+    }
+    let cancelled = false;
+    getDropdownItemsForOption(editingOptionId).then((items) => {
+      if (!cancelled) setDropdownItemsForOption(items);
+    });
+    return () => { cancelled = true; };
+  }, [editingOptionId]);
+
+  const handleAddDropdownItem = async () => {
+    if (!editingOptionId || (!dropdownItemForm.label_en.trim() && !dropdownItemForm.label_fr.trim())) return;
+    setDropdownItemLoading(true);
+    setError(null);
+    try {
+      await createDropdownItem(editingOptionId, {
+        label_en: dropdownItemForm.label_en.trim() || dropdownItemForm.label_fr.trim() || "Item",
+        label_fr: dropdownItemForm.label_fr.trim() || dropdownItemForm.label_en.trim() || "Item",
+        price: dropdownItemForm.price,
+        sort_order: dropdownItemsForOption.length,
+        image_url: dropdownItemForm.image_url?.trim() || null,
+      });
+      const items = await getDropdownItemsForOption(editingOptionId);
+      setDropdownItemsForOption(items);
+      setDropdownItemForm({ label_en: "", label_fr: "", price: 0, image_url: "" });
+      setShowAddDropdownItem(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to add dropdown item");
+    } finally {
+      setDropdownItemLoading(false);
+    }
+  };
+
+  const handleSaveDropdownItem = async () => {
+    if (!editingDropdownItemId) return;
+    setDropdownItemLoading(true);
+    setError(null);
+    try {
+      await updateDropdownItem(editingDropdownItemId, {
+        label_en: dropdownItemForm.label_en.trim() || undefined,
+        label_fr: dropdownItemForm.label_fr.trim() || undefined,
+        price: dropdownItemForm.price,
+        image_url: dropdownItemForm.image_url?.trim() || null,
+      });
+      if (editingOptionId) {
+        const items = await getDropdownItemsForOption(editingOptionId);
+        setDropdownItemsForOption(items);
+      }
+      setEditingDropdownItemId(null);
+      setDropdownItemForm({ label_en: "", label_fr: "", price: 0, image_url: "" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update dropdown item");
+    } finally {
+      setDropdownItemLoading(false);
+    }
+  };
+
+  const handleDeleteDropdownItem = async (id: string) => {
+    setDropdownItemLoading(true);
+    setError(null);
+    try {
+      await deleteDropdownItem(id);
+      if (editingOptionId) {
+        const items = await getDropdownItemsForOption(editingOptionId);
+        setDropdownItemsForOption(items);
+      }
+      if (editingDropdownItemId === id) {
+        setEditingDropdownItemId(null);
+        setDropdownItemForm({ label_en: "", label_fr: "", price: 0, image_url: "" });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete dropdown item");
+    } finally {
+      setDropdownItemLoading(false);
+    }
+  };
 
   const handleSaveStepImage = async () => {
     const row = currentStepRow as (ConfiguratorStepRow & { step_key?: string }) | undefined;
@@ -1551,6 +1643,152 @@ export default function AdminConfiguratorPage() {
                 </div>
                 {uploadError && <p className="mt-1 text-xs text-red-600">{uploadError}</p>}
               </div>
+
+              {editingOptionId && (
+                <div className="mt-6 rounded-xl border border-foreground/15 bg-white/95 p-4">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {isFr ? "Menu déroulant (options supplémentaires)" : "Dropdown menu (additional options)"}
+                  </h4>
+                  <p className="mt-0.5 text-xs text-foreground/60">
+                    {isFr ? "Les clients verront un menu déroulant après avoir choisi cette option (ex. finition pour un boîtier)." : "Customers will see a dropdown after selecting this option (e.g. finish type for a case)."}
+                  </p>
+                  <ul className="mt-3 space-y-2">
+                    {dropdownItemsForOption.map((dd) => (
+                      <li key={dd.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-foreground/15 bg-white px-3 py-2">
+                        {editingDropdownItemId === dd.id ? (
+                          <div className="flex flex-1 flex-wrap items-center gap-2">
+                            <input
+                              value={dropdownItemForm.label_en}
+                              onChange={(e) => setDropdownItemForm((p) => ({ ...p, label_en: e.target.value }))}
+                              placeholder="Label (EN)"
+                              className="min-w-[100px] rounded border border-foreground/25 px-2 py-1 text-sm"
+                            />
+                            <input
+                              value={dropdownItemForm.label_fr}
+                              onChange={(e) => setDropdownItemForm((p) => ({ ...p, label_fr: e.target.value }))}
+                              placeholder="Label (FR)"
+                              className="min-w-[100px] rounded border border-foreground/25 px-2 py-1 text-sm"
+                            />
+                            <div className="flex items-center gap-1">
+                              <label className="text-xs font-medium text-foreground/70">{isFr ? "Prix (CAD)" : "Price (CAD)"}</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={dropdownItemForm.price}
+                                onChange={(e) => setDropdownItemForm((p) => ({ ...p, price: Number(e.target.value) }))}
+                                placeholder="0"
+                                className="w-20 rounded border border-foreground/25 px-2 py-1 text-sm"
+                              />
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-medium text-foreground/70">{isFr ? "Image" : "Image"}:</span>
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                className="block max-w-[140px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) openCropModalFromFile(file, (url) => setDropdownItemForm((p) => ({ ...p, image_url: url })));
+                                  e.target.value = "";
+                                }}
+                              />
+                              <input
+                                value={dropdownItemForm.image_url}
+                                onChange={(e) => setDropdownItemForm((p) => ({ ...p, image_url: e.target.value }))}
+                                placeholder={isFr ? "Ou URL" : "Or URL"}
+                                className="min-w-[120px] rounded border border-foreground/25 px-2 py-1 text-sm"
+                              />
+                              {dropdownItemForm.image_url && (
+                                <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded bg-foreground/10">
+                                  <img src={dropdownItemForm.image_url} alt="" className="h-full w-full object-cover" />
+                                </span>
+                              )}
+                            </div>
+                            <button type="button" onClick={handleSaveDropdownItem} disabled={dropdownItemLoading} className="rounded bg-foreground px-2 py-1 text-xs text-white disabled:opacity-50">Save</button>
+                            <button type="button" onClick={() => { setEditingDropdownItemId(null); setDropdownItemForm({ label_en: "", label_fr: "", price: 0, image_url: "" }); }} className="rounded border border-foreground/25 px-2 py-1 text-xs">Cancel</button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              {(dd as { image_url?: string | null }).image_url ? (
+                                <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded bg-foreground/10">
+                                  <img src={(dd as { image_url: string }).image_url} alt="" className="h-full w-full object-cover" />
+                                </span>
+                              ) : null}
+                              <span className="text-sm text-foreground">
+                                {isFr ? dd.label_fr : dd.label_en}
+                                {dd.price > 0 ? ` · C$${dd.price}` : ""}
+                              </span>
+                            </div>
+                            <div className="flex gap-1">
+                              <button type="button" onClick={() => { setEditingDropdownItemId(dd.id); setDropdownItemForm({ label_en: dd.label_en, label_fr: dd.label_fr, price: dd.price, image_url: (dd as { image_url?: string | null }).image_url ?? "" }); }} className="rounded border border-foreground/20 px-2 py-1 text-xs text-foreground hover:bg-foreground/5">Edit</button>
+                              <button type="button" onClick={() => handleDeleteDropdownItem(dd.id)} disabled={dropdownItemLoading} className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50">Delete</button>
+                            </div>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {showAddDropdownItem ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-foreground/30 bg-white/80 p-3">
+                      <input
+                        value={dropdownItemForm.label_en}
+                        onChange={(e) => setDropdownItemForm((p) => ({ ...p, label_en: e.target.value }))}
+                        placeholder={isFr ? "Label (EN)" : "Label (EN)"}
+                        className="min-w-[100px] rounded border border-foreground/25 px-2 py-1 text-sm"
+                      />
+                      <input
+                        value={dropdownItemForm.label_fr}
+                        onChange={(e) => setDropdownItemForm((p) => ({ ...p, label_fr: e.target.value }))}
+                        placeholder={isFr ? "Label (FR)" : "Label (FR)"}
+                        className="min-w-[100px] rounded border border-foreground/25 px-2 py-1 text-sm"
+                      />
+                      <div className="flex items-center gap-1">
+                        <label className="text-xs font-medium text-foreground/70">{isFr ? "Prix (CAD)" : "Price (CAD)"}</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={dropdownItemForm.price}
+                          onChange={(e) => setDropdownItemForm((p) => ({ ...p, price: Number(e.target.value) }))}
+                          placeholder="0"
+                          className="w-20 rounded border border-foreground/25 px-2 py-1 text-sm"
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-medium text-foreground/70">{isFr ? "Image" : "Image"}:</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          className="block max-w-[140px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) openCropModalFromFile(file, (url) => setDropdownItemForm((p) => ({ ...p, image_url: url })));
+                            e.target.value = "";
+                          }}
+                        />
+                        <input
+                          value={dropdownItemForm.image_url}
+                          onChange={(e) => setDropdownItemForm((p) => ({ ...p, image_url: e.target.value }))}
+                          placeholder={isFr ? "Ou URL" : "Or URL"}
+                          className="min-w-[120px] rounded border border-foreground/25 px-2 py-1 text-sm"
+                        />
+                        {dropdownItemForm.image_url ? (
+                          <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded bg-foreground/10">
+                            <img src={dropdownItemForm.image_url} alt="" className="h-full w-full object-cover" />
+                          </span>
+                        ) : null}
+                      </div>
+                      <button type="button" onClick={handleAddDropdownItem} disabled={dropdownItemLoading} className="rounded bg-foreground px-3 py-1 text-xs text-white disabled:opacity-50">{isFr ? "Ajouter" : "Add"}</button>
+                      <button type="button" onClick={() => { setShowAddDropdownItem(false); setDropdownItemForm({ label_en: "", label_fr: "", price: 0, image_url: "" }); }} className="rounded border border-foreground/25 px-2 py-1 text-xs">Cancel</button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setShowAddDropdownItem(true)} className="mt-3 rounded-lg border-2 border-dashed border-foreground/30 bg-white/60 px-3 py-2 text-sm text-foreground/70 hover:border-foreground/50 hover:bg-white/80 hover:text-foreground">
+                      + {isFr ? "Ajouter un choix au menu déroulant" : "Add dropdown choice"}
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"

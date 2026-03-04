@@ -204,7 +204,25 @@ export default function CartView({ locale, labels }: { locale: string; labels: C
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground">{item.title}</p>
                     {(() => {
-                      const cfg = item.configuration as { bracelet_title?: string; addons?: { option_label_en?: string; option_label_fr?: string; price?: number }[] } | undefined;
+                      const cfg = item.configuration as {
+                        bracelet_title?: string;
+                        addons?: { option_label_en?: string; option_label_fr?: string; price?: number }[];
+                        summaryLines?: { label: string; price: number }[];
+                      } | undefined;
+                      const isCustomBuild = item.product_id.startsWith("custom-");
+                      const summaryLines = Array.isArray(cfg?.summaryLines) ? cfg.summaryLines : [];
+                      if (isCustomBuild && summaryLines.length > 0) {
+                        return (
+                          <ul className="mt-1 space-y-0.5 text-xs text-foreground/60">
+                            {summaryLines.map((line, i) => (
+                              <li key={i}>
+                                {line.label}
+                                {line.price > 0 ? ` (${formatPrice(line.price)})` : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        );
+                      }
                       const variant = cfg?.bracelet_title;
                       const addons = Array.isArray(cfg?.addons) ? cfg.addons : [];
                       if (!variant && addons.length === 0) return null;

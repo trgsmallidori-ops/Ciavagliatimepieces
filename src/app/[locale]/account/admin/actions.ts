@@ -1903,6 +1903,92 @@ export async function deleteConfiguratorOption(id: string) {
   revalidatePath("/[locale]/account/admin", "page");
 }
 
+// ——— Configurator dropdown items (sub-options per configurator option, e.g. finish type for a case) ———
+export type ConfiguratorDropdownItemRow = {
+  id: string;
+  option_id: string;
+  label_en: string;
+  label_fr: string;
+  price: number;
+  sort_order: number;
+  image_url: string | null;
+};
+
+export async function getDropdownItemsForOption(optionId: string): Promise<ConfiguratorDropdownItemRow[]> {
+  await requireAdmin();
+  if (!optionId) return [];
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("configurator_dropdown_items")
+    .select("id, option_id, label_en, label_fr, price, sort_order, image_url")
+    .eq("option_id", optionId)
+    .order("sort_order", { ascending: true });
+  if (error) return [];
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    option_id: r.option_id,
+    label_en: r.label_en,
+    label_fr: r.label_fr,
+    price: Number(r.price ?? 0),
+    sort_order: Number(r.sort_order ?? 0),
+    image_url: (r as { image_url?: string | null }).image_url ?? null,
+  }));
+}
+
+export async function createDropdownItem(
+  optionId: string,
+  input: { label_en: string; label_fr: string; price?: number; sort_order?: number; image_url?: string | null }
+) {
+  await requireAdmin();
+  if (!optionId) throw new Error("Invalid option id");
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("configurator_dropdown_items")
+    .insert({
+      option_id: optionId,
+      label_en: input.label_en.trim() || "Item",
+      label_fr: input.label_fr.trim() || input.label_en.trim() || "Item",
+      price: Number(input.price ?? 0),
+      sort_order: Number(input.sort_order ?? 0),
+      image_url: input.image_url?.trim() || null,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  revalidatePath("/[locale]/configurator", "page");
+  revalidatePath("/[locale]/account/admin/configurator", "page");
+  return data?.id;
+}
+
+export async function updateDropdownItem(
+  id: string,
+  input: { label_en?: string; label_fr?: string; price?: number; sort_order?: number; image_url?: string | null }
+) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid id");
+  const supabase = createServerClient();
+  const updates: Record<string, unknown> = {};
+  if (input.label_en !== undefined) updates.label_en = input.label_en.trim() || "Item";
+  if (input.label_fr !== undefined) updates.label_fr = (input.label_fr.trim() || input.label_en) ?? "Item";
+  if (input.price !== undefined) updates.price = Number(input.price);
+  if (input.sort_order !== undefined) updates.sort_order = Number(input.sort_order);
+  if (input.image_url !== undefined) updates.image_url = input.image_url?.trim() || null;
+  const { error } = await supabase.from("configurator_dropdown_items").update(updates).eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/configurator", "page");
+  revalidatePath("/[locale]/account/admin/configurator", "page");
+}
+
+export async function deleteDropdownItem(id: string) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid id");
+  const supabase = createServerClient();
+  const { error } = await supabase.from("configurator_dropdown_items").delete().eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/configurator", "page");
+  revalidatePath("/[locale]/account/admin/configurator", "page");
+}
+
 // ——— Configurator optional add-ons (e.g. Frosted Finish on Case step, available for specific options) ———
 export type ConfiguratorAddonRow = {
   id: string;
@@ -2137,12 +2223,15 @@ export type LayerTransformRow = {
   scale: number;
 };
 
+/** One dropdown choice under a configurator option (e.g. "Polished" for Case option "Yellow Gold"). */
+export type PublicDropdownItem = { id: string; label_en: string; label_fr: string; price: number; sort_order: number; image_url: string | null };
+
 /** Public: full configurator data for customer (no auth). Used by Configurator component. */
 export type PublicConfiguratorData = {
   stepsMeta: { id: string; step_key: string | null; label_en: string; label_fr: string; optional: boolean; sort_order: number; image_url: string | null }[];
   functionOptions: { id: string; label_en: string; label_fr: string; letter: string; price: number; discount_percent: number }[];
   functionStepsMap: Record<string, string[]>;
-  options: { id: string; step_id: string; parent_option_id: string | null; label_en: string; label_fr: string; letter: string; price: number; discount_percent: number; image_url: string | null; preview_image_url: string | null; layer_image_url: string | null; layer_z_index: number }[];
+  options: { id: string; step_id: string; parent_option_id: string | null; label_en: string; label_fr: string; letter: string; price: number; discount_percent: number; image_url: string | null; preview_image_url: string | null; layer_image_url: string | null; layer_z_index: number; dropdownItems?: PublicDropdownItem[] }[];
   addons: { id: string; step_id: string; label_en: string; label_fr: string; price: number; option_ids: string[] }[];
   configuratorDiscountPercent: number;
   /** Layer position/scale per function (watch type). Key = function_option_id, value = per step_key. */
@@ -2222,6 +2311,23 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       option_ids: optionIdsByAddon[a.id] ?? [],
     }));
 
+    const { data: dropdownRows } = await supabase
+      .from("configurator_dropdown_items")
+      .select("id, option_id, label_en, label_fr, price, sort_order, image_url")
+      .order("sort_order", { ascending: true });
+    const dropdownByOptionId: Record<string, PublicDropdownItem[]> = {};
+    (dropdownRows ?? []).forEach((d: { id: string; option_id: string; label_en: string; label_fr: string; price: number; sort_order: number; image_url?: string | null }) => {
+      if (!dropdownByOptionId[d.option_id]) dropdownByOptionId[d.option_id] = [];
+      dropdownByOptionId[d.option_id].push({
+        id: d.id,
+        label_en: d.label_en,
+        label_fr: d.label_fr,
+        price: Number(d.price ?? 0),
+        sort_order: Number(d.sort_order ?? 0),
+        image_url: d.image_url ?? null,
+      });
+    });
+
     const options = (allOptions ?? []).map((o) => ({
       id: o.id,
       step_id: o.step_id,
@@ -2235,6 +2341,7 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       preview_image_url: (o as { preview_image_url?: string }).preview_image_url ?? null,
       layer_image_url: (o as { layer_image_url?: string }).layer_image_url ?? null,
       layer_z_index: Number((o as { layer_z_index?: number }).layer_z_index ?? 0),
+      dropdownItems: dropdownByOptionId[o.id]?.length ? dropdownByOptionId[o.id] : undefined,
     }));
 
     const { data: discountRow } = await supabase
