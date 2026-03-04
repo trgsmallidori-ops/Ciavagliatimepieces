@@ -300,14 +300,16 @@ export default function AdminConfiguratorPage() {
       setLayerOffsets((prev) => {
         const next = { ...prev };
         rows.forEach((r) => {
-          next[`${effectiveFunctionId}:${r.step_key}`] = { x: r.offset_x, y: r.offset_y };
+          const key = r.option_id ? `${effectiveFunctionId}:${r.step_key}:${r.option_id}` : `${effectiveFunctionId}:${r.step_key}`;
+          next[key] = { x: r.offset_x, y: r.offset_y };
         });
         return next;
       });
       setLayerScales((prev) => {
         const next = { ...prev };
         rows.forEach((r) => {
-          next[`${effectiveFunctionId}:${r.step_key}`] = r.scale;
+          const key = r.option_id ? `${effectiveFunctionId}:${r.step_key}:${r.option_id}` : `${effectiveFunctionId}:${r.step_key}`;
+          next[key] = r.scale;
         });
         return next;
       });
@@ -338,15 +340,17 @@ export default function AdminConfiguratorPage() {
         ...Object.keys(layerOffsetsMerged).filter((k) => k.startsWith(prefix)),
         ...Object.keys(layerScalesMerged).filter((k) => k.startsWith(prefix)),
       ]);
-      const transforms: { step_id: string; offset_x: number; offset_y: number; scale: number }[] = [];
+      const transforms: { step_id: string; option_id?: string | null; offset_x: number; offset_y: number; scale: number }[] = [];
       keys.forEach((key) => {
-        const stepKey = key.slice(prefix.length);
+        const rest = key.slice(prefix.length);
+        const [stepKey, optionId] = rest.split(":");
         const stepId = stepKeyToId.get(stepKey);
         if (!stepId) return;
         const off = layerOffsetsMerged[key];
         const scale = layerScalesMerged[key] ?? 1;
         transforms.push({
           step_id: stepId,
+          option_id: optionId ? optionId : null,
           offset_x: off?.x ?? 0,
           offset_y: off?.y ?? 0,
           scale,
@@ -381,7 +385,8 @@ export default function AdminConfiguratorPage() {
     if (!effectiveFunctionId || !lastEditedLayerKey) return;
     const prefix = `${effectiveFunctionId}:`;
     if (!lastEditedLayerKey.startsWith(prefix)) return;
-    const stepKey = lastEditedLayerKey.slice(prefix.length);
+    const rest = lastEditedLayerKey.slice(prefix.length);
+    const [stepKey, optionId] = rest.split(":");
     const stepId = stepKeyToId.get(stepKey);
     if (!stepId) return;
     const off = layerOffsetsMerged[lastEditedLayerKey];
@@ -391,6 +396,7 @@ export default function AdminConfiguratorPage() {
       await setLayerTransformForStep(
         effectiveFunctionId,
         stepId,
+        optionId ? optionId : null,
         off?.x ?? 0,
         off?.y ?? 0,
         scale

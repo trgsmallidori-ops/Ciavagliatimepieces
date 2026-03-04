@@ -150,7 +150,7 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
     const rows = layerTransformsByFunction[functionId] ?? [];
     const out: Record<string, { x: number; y: number }> = {};
     rows.forEach((r) => {
-      const key = `${functionId}:${r.step_key}`;
+      const key = r.option_id ? `${functionId}:${r.step_key}:${r.option_id}` : `${functionId}:${r.step_key}`;
       out[key] = { x: r.offset_x, y: r.offset_y };
     });
     return out;
@@ -159,7 +159,7 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
     const rows = layerTransformsByFunction[functionId] ?? [];
     const out: Record<string, number> = {};
     rows.forEach((r) => {
-      const key = `${functionId}:${r.step_key}`;
+      const key = r.option_id ? `${functionId}:${r.step_key}:${r.option_id}` : `${functionId}:${r.step_key}`;
       out[key] = r.scale;
     });
     return out;

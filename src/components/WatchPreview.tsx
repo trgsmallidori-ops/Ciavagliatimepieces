@@ -71,7 +71,7 @@ export function WatchPreview({
   } | null>(null);
 
   const layers = useMemo(() => {
-    const layerArray: { url: string; zIndex: number; key: string; stepKey: string }[] = [];
+    const layerArray: { url: string; zIndex: number; key: string; stepKey: string; optionId: string | null }[] = [];
 
     stepsForFunction.forEach((stepKey, idx) => {
       const selectedId = selections[stepKey];
@@ -102,6 +102,7 @@ export function WatchPreview({
         zIndex,
         key: `${stepKey}-${selectedId}`,
         stepKey,
+        optionId: selectedId,
       });
     });
 
@@ -111,6 +112,7 @@ export function WatchPreview({
         zIndex: 56,
         key: "extra-gmt-sub",
         stepKey: "extra",
+        optionId: selections.extra ?? null,
       });
     }
 
@@ -143,9 +145,12 @@ export function WatchPreview({
         aria-hidden
       />
       {layers.map((layer) => {
-        const groupKey = `${functionId}:${layer.stepKey}`;
-        const offset = layerOffsets?.[groupKey] ?? { x: 0, y: 0 };
-        const scale = layerScales?.[groupKey] ?? 1;
+        const stepKeyKey = `${functionId}:${layer.stepKey}`;
+        const optionKey = layer.optionId ? `${functionId}:${layer.stepKey}:${layer.optionId}` : stepKeyKey;
+        const groupKey = optionKey;
+        // Prefer option-specific transforms; fall back to legacy per-step transforms.
+        const offset = layerOffsets?.[optionKey] ?? layerOffsets?.[stepKeyKey] ?? { x: 0, y: 0 };
+        const scale = layerScales?.[optionKey] ?? layerScales?.[stepKeyKey] ?? 1;
 
         const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
           if (!onLayerOffsetChange && !onLayerScaleChange) return;

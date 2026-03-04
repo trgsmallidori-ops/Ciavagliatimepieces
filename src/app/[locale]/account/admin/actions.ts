@@ -2042,7 +2042,7 @@ export async function getLayerTransformsForFunction(
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("configurator_layer_transforms")
-    .select("step_id, offset_x, offset_y, scale")
+    .select("step_id, option_id, offset_x, offset_y, scale")
     .eq("function_option_id", functionOptionId);
   if (error) return [];
   const stepIds = (data ?? []).map((r: { step_id: string }) => r.step_id);
@@ -2054,8 +2054,9 @@ export async function getLayerTransformsForFunction(
   const idToKey = new Map(
     (steps ?? []).map((s: { id: string; step_key: string | null }) => [s.id, (s.step_key ?? "").toString()])
   );
-  return (data ?? []).map((r: { step_id: string; offset_x: number; offset_y: number; scale: number }) => ({
+  return (data ?? []).map((r: { step_id: string; option_id?: string | null; offset_x: number; offset_y: number; scale: number }) => ({
     step_key: idToKey.get(r.step_id) ?? "",
+    option_id: (r as { option_id?: string | null }).option_id ?? null,
     offset_x: Number(r.offset_x ?? 0),
     offset_y: Number(r.offset_y ?? 0),
     scale: Number(r.scale ?? 1),
@@ -2065,7 +2066,7 @@ export async function getLayerTransformsForFunction(
 /** Admin: set layer transforms for a watch type. Transforms keyed by step_id. */
 export async function setLayerTransforms(
   functionOptionId: string,
-  transforms: { step_id: string; offset_x: number; offset_y: number; scale: number }[]
+  transforms: { step_id: string; option_id?: string | null; offset_x: number; offset_y: number; scale: number }[]
 ): Promise<void> {
   await requireAdmin();
   if (!functionOptionId) throw new Error("Function option id required");
@@ -2079,6 +2080,7 @@ export async function setLayerTransforms(
     const rows = transforms.map((t) => ({
       function_option_id: functionOptionId,
       step_id: t.step_id,
+      option_id: (t as { option_id?: string | null }).option_id ?? null,
       offset_x: t.offset_x,
       offset_y: t.offset_y,
       scale: Math.max(0.5, Math.min(2, t.scale)),
@@ -2090,10 +2092,11 @@ export async function setLayerTransforms(
   revalidatePath("/[locale]/account/admin", "page");
 }
 
-/** Admin: set a single layer transform for one step (upsert). Use to save only the moved layer. */
+/** Admin: set a single layer transform for one step. Use to save only the moved layer. */
 export async function setLayerTransformForStep(
   functionOptionId: string,
   stepId: string,
+  optionId: string | null,
   offset_x: number,
   offset_y: number,
   scale: number
@@ -2101,17 +2104,26 @@ export async function setLayerTransformForStep(
   await requireAdmin();
   if (!functionOptionId || !stepId) throw new Error("Function option id and step id required");
   const supabase = createServerClient();
-  const row = {
+  const scaleClamped = Math.max(0.5, Math.min(2, scale));
+  // Delete then insert: partial unique indexes don't match ON CONFLICT in Supabase/Postgres
+  const q = supabase
+    .from("configurator_layer_transforms")
+    .delete()
+    .eq("function_option_id", functionOptionId)
+    .eq("step_id", stepId);
+  const { error: delErr } = optionId == null
+    ? await q.is("option_id", null)
+    : await q.eq("option_id", optionId);
+  if (delErr) throw delErr;
+  const { error: insErr } = await supabase.from("configurator_layer_transforms").insert({
     function_option_id: functionOptionId,
     step_id: stepId,
+    option_id: optionId,
     offset_x,
     offset_y,
-    scale: Math.max(0.5, Math.min(2, scale)),
-  };
-  const { error } = await supabase
-    .from("configurator_layer_transforms")
-    .upsert(row, { onConflict: "function_option_id,step_id" });
-  if (error) throw error;
+    scale: scaleClamped,
+  });
+  if (insErr) throw insErr;
   revalidatePath("/[locale]/configurator", "page");
   revalidatePath("/[locale]/account/admin", "page");
 }
@@ -2119,6 +2131,7 @@ export async function setLayerTransformForStep(
 /** Per-step layer transform for configurator preview (admin-set, used on public configurator). */
 export type LayerTransformRow = {
   step_key: string;
+  option_id: string | null;
   offset_x: number;
   offset_y: number;
   scale: number;
@@ -2234,14 +2247,15 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
     let layerTransformsByFunction: Record<string, LayerTransformRow[]> = {};
     const { data: ltRows, error: ltErr } = await supabase
       .from("configurator_layer_transforms")
-      .select("function_option_id, step_id, offset_x, offset_y, scale");
+      .select("function_option_id, step_id, option_id, offset_x, offset_y, scale");
     if (!ltErr && ltRows?.length) {
       const stepIdToKey = new Map(stepsMeta.map((s) => [s.id, (s.step_key ?? "").toString()]));
-      ltRows.forEach((r: { function_option_id: string; step_id: string; offset_x: number; offset_y: number; scale: number }) => {
+      ltRows.forEach((r: { function_option_id: string; step_id: string; option_id?: string | null; offset_x: number; offset_y: number; scale: number }) => {
         const fid = r.function_option_id;
         if (!layerTransformsByFunction[fid]) layerTransformsByFunction[fid] = [];
         layerTransformsByFunction[fid].push({
           step_key: stepIdToKey.get(r.step_id) ?? "",
+          option_id: (r as { option_id?: string | null }).option_id ?? null,
           offset_x: Number(r.offset_x ?? 0),
           offset_y: Number(r.offset_y ?? 0),
           scale: Number(r.scale ?? 1),
