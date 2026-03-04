@@ -43,4 +43,4 @@ strap-leather-black.png, strap-metal.png, ...
 - If `layer_image_url` is empty, the configurator falls back to `image_url` (thumbnail)
 - Options without layer images are skipped in the composite
 - The base (Function) layer is required; other layers are optional
-- Layer images are shown as-is; the preview does not modify them. Export layer images with a real transparent background (alpha channel) from your 3D or design tool so the composite displays correctly and colors stay accurate.
+- Layer images are shown as-is when they have real transparency. If a layer image has a solid black, white, or grey background (e.g. PNG exported without alpha, or alpha lost on some browsers), the configurator will **automatically** treat that background as transparent so the composite still looks correct. For best quality, export layer images with a real transparent background (alpha channel) from your 3D or design tool when possible.
