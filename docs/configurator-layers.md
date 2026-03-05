@@ -6,15 +6,17 @@ This guide explains how to prepare and upload layer images for the interactive w
 
 The configurator composites watch images by stacking transparent PNG layers:
 
+Stacking order (bottom → top): **strap → case → bezel → dial → hands**.
+
 | Layer | Step | Z-Index | Description |
 |-------|------|---------|-------------|
 | Base | Function | 0 | Full watch image (Oak, Naut, Sub, etc.) |
-| Case | Case | 10 | Transparent PNG with case in selected color |
-| Bezel | Bezel | 15 | Transparent PNG with bezel (after case) |
-| Dial | Dial | 20 | Transparent PNG with dial pattern/color |
-| Hands | Hands | 30 | Transparent PNG with watch hands |
-| Strap | Strap | 40 | Transparent PNG with strap/bracelet |
-| Extra | Extra | 50 | Optional layer at the end (e.g. GMT/Sub) |
+| Strap | Strap | 10 | Transparent PNG with strap/bracelet (bottom) |
+| Case | Case | 20 | Transparent PNG with case in selected color |
+| Bezel | Bezel | 30 | Transparent PNG with bezel |
+| Dial | Dial | 40 | Transparent PNG with dial pattern/color |
+| Hands | Hands | 50 | Transparent PNG with watch hands (top) |
+| Extra | Extra | 51 | Optional layer at the end (e.g. GMT/Sub) |
 
 ## Image Requirements
 
@@ -38,7 +40,7 @@ strap-leather-black.png, strap-metal.png, ...
 1. Go to **Account > Admin > Configurator**
 2. Edit each option (Function, Case, Dial, Hands, Strap)
 3. Use the **Layer Image** upload field (separate from Thumbnail Image). When you crop a layer image in the admin, it is saved as **PNG** to preserve transparency and color; thumbnail and preview image crops are saved as JPEG.
-4. Set **Layer Z-Index** (defaults: Function=0, Case=10, Dial=20, Hands=30, Strap=40)
+4. Set **Layer Z-Index** (defaults: strap=10, case=20, bezel=30, dial=40, hands=50, extra=51)
 
 ## Fallback Behavior
 

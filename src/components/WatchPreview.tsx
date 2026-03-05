@@ -15,14 +15,15 @@ type OptionWithLayers = {
 
 type LayerOffset = { x: number; y: number };
 
+/** Layer order bottom → top: strap, case, bezel, dial, hands. */
 const DEFAULT_Z_INDEX: Record<string, number> = {
   function: 1,
   size: 6,
-  case: 11,
-  bezel: 16,
-  dial: 21,
-  hands: 31,
-  strap: 41,
+  strap: 10,
+  case: 20,
+  bezel: 30,
+  dial: 40,
+  hands: 50,
   extra: 51,
 };
 

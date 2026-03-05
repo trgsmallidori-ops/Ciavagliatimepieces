@@ -1598,7 +1598,7 @@ export default function AdminConfiguratorPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <label className="text-xs font-medium uppercase tracking-wider text-foreground">{isFr ? "Image couche (aperçu composite)" : "Layer image (composite preview)"}</label>
-                  <p className="mt-0.5 text-xs text-foreground/60">{isFr ? "PNG avec transparence réelle (canal alpha) pour superposition. 0=base, 10=boîtier, 15=lunette, 20=cadran, 30=aiguilles, 40=bracelet, 50=extra. Exportez avec fond transparent depuis votre outil 3D." : "PNG with real transparency (alpha channel) for stacking. 0=base, 10=case, 15=bezel, 20=dial, 30=hands, 40=strap, 50=extra. Export with transparent background from your 3D tool so the preview shows correctly."}</p>
+                  <p className="mt-0.5 text-xs text-foreground/60">{isFr ? "PNG avec transparence réelle (canal alpha) pour superposition. Ordre (bas → haut) : bracelet=10, boîtier=20, lunette=30, cadran=40, aiguilles=50, extra=51. Exportez avec fond transparent depuis votre outil 3D." : "PNG with real transparency (alpha channel) for stacking. Order (bottom → top): strap=10, case=20, bezel=30, dial=40, hands=50, extra=51. Export with transparent background from your 3D tool so the preview shows correctly."}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <input
                       type="file"
@@ -1639,7 +1639,7 @@ export default function AdminConfiguratorPage() {
                     placeholder="0"
                     className="mt-1 w-full rounded-lg border border-foreground/25 bg-white px-3 py-2 text-foreground placeholder:text-neutral-500"
                   />
-                  <p className="mt-0.5 text-xs text-foreground/60">{isFr ? "0=base, 10=boîtier, 15=lunette, 20=cadran, 30=aiguilles, 40=bracelet, 50=extra" : "0=base, 10=case, 15=bezel, 20=dial, 30=hands, 40=strap, 50=extra"}</p>
+                  <p className="mt-0.5 text-xs text-foreground/60">{isFr ? "Bas → haut : 10=bracelet, 20=boîtier, 30=lunette, 40=cadran, 50=aiguilles, 51=extra" : "Bottom → top: 10=strap, 20=case, 30=bezel, 40=dial, 50=hands, 51=extra"}</p>
                 </div>
                 {uploadError && <p className="mt-1 text-xs text-red-600">{uploadError}</p>}
               </div>
