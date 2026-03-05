@@ -53,6 +53,8 @@ export default function AdminImageEditor({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** When aspect prop is undefined, we use the image's natural aspect so the crop box covers the full image (avoids 4/3 default that chops tall images). */
+  const [imageAspect, setImageAspect] = useState<number | null>(null);
 
   const onCropComplete = useCallback((_croppedArea: Area, pixels: Area) => {
     setCroppedAreaPixels(pixels);
@@ -63,7 +65,24 @@ export default function AdminImageEditor({
     setCrop({ x: 0, y: 0 });
     setZoom(INITIAL_ZOOM);
     setCroppedAreaPixels(null);
+    setImageAspect(null);
   }, [open, imageSource]);
+
+  // When no fixed aspect is passed, load image to get natural aspect so initial crop covers full image (e.g. tall watch band images).
+  useEffect(() => {
+    if (!open || !imageSource || aspect !== undefined) {
+      setImageAspect(null);
+      return;
+    }
+    const img = document.createElement("img");
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      setImageAspect(h > 0 ? w / h : 1);
+    };
+    img.onerror = () => setImageAspect(1);
+    img.src = imageSource;
+  }, [open, imageSource, aspect]);
 
   const handleSave = useCallback(async () => {
     if (!imageSource || !croppedAreaPixels) return;
@@ -122,12 +141,12 @@ export default function AdminImageEditor({
             </div>
           )}
           <div className={backgroundImageUrl ? "relative z-10 h-full w-full" : "absolute inset-0"}>
-            {imageSource && (
+            {imageSource && (aspect !== undefined || imageAspect !== null) && (
               <Cropper
                 image={imageSource}
                 crop={crop}
                 zoom={zoom}
-                aspect={aspect}
+                aspect={aspect ?? imageAspect ?? 1}
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
                 onCropComplete={onCropComplete}
