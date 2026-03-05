@@ -1686,10 +1686,22 @@ export default function AdminConfiguratorPage() {
                                 type="file"
                                 accept="image/jpeg,image/png,image/webp,image/gif"
                                 className="block max-w-[140px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   const file = e.target.files?.[0];
-                                  if (file) openCropModalFromFile(file, (url) => setDropdownItemForm((p) => ({ ...p, image_url: url })));
-                                  e.target.value = "";
+                                  if (!file) return;
+                                  setDropdownItemLoading(true);
+                                  setError(null);
+                                  try {
+                                    const fd = new FormData();
+                                    fd.append("image", file);
+                                    const { url } = await uploadProductImage(fd);
+                                    setDropdownItemForm((p) => ({ ...p, image_url: url }));
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : "Upload failed");
+                                  } finally {
+                                    setDropdownItemLoading(false);
+                                    e.target.value = "";
+                                  }
                                 }}
                               />
                               <input
@@ -1760,10 +1772,22 @@ export default function AdminConfiguratorPage() {
                           type="file"
                           accept="image/jpeg,image/png,image/webp,image/gif"
                           className="block max-w-[140px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
-                            if (file) openCropModalFromFile(file, (url) => setDropdownItemForm((p) => ({ ...p, image_url: url })));
-                            e.target.value = "";
+                            if (!file) return;
+                            setDropdownItemLoading(true);
+                            setError(null);
+                            try {
+                              const fd = new FormData();
+                              fd.append("image", file);
+                              const { url } = await uploadProductImage(fd);
+                              setDropdownItemForm((p) => ({ ...p, image_url: url }));
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : "Upload failed");
+                            } finally {
+                              setDropdownItemLoading(false);
+                              e.target.value = "";
+                            }
                           }}
                         />
                         <input
