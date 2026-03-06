@@ -127,10 +127,22 @@ create table if not exists configurator_steps (
   updated_at timestamptz default now()
 );
 
+create table if not exists configurator_option_groups (
+  id uuid primary key default gen_random_uuid(),
+  step_id uuid not null references configurator_steps(id) on delete cascade,
+  label_en text not null,
+  label_fr text not null,
+  image_url text,
+  sort_order int not null default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table if not exists configurator_options (
   id uuid primary key default gen_random_uuid(),
   step_id uuid not null references configurator_steps(id) on delete cascade,
   parent_option_id uuid references configurator_options(id) on delete cascade,
+  group_id uuid references configurator_option_groups(id) on delete set null,
   label_en text not null,
   label_fr text not null,
   letter text not null default 'A',
@@ -140,6 +152,8 @@ create table if not exists configurator_options (
   layer_image_url text,
   layer_z_index int default 0,
   sort_order int default 0,
+  option_group_en text,
+  option_group_fr text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

@@ -1631,6 +1631,18 @@ export type ConfiguratorOptionRow = {
   layer_image_url?: string | null;
   layer_z_index?: number;
   sort_order: number;
+  option_group_en?: string | null;
+  option_group_fr?: string | null;
+  group_id?: string | null;
+};
+
+export type ConfiguratorOptionGroupRow = {
+  id: string;
+  step_id: string;
+  label_en: string;
+  label_fr: string;
+  image_url: string | null;
+  sort_order: number;
 };
 
 /** Public: fetch steps in order (includes step_key and optional when present). */
@@ -1750,16 +1762,22 @@ export async function setFunctionSteps(functionOptionId: string, stepIds: string
 export async function getAdminConfiguratorOptions(stepId?: string | null, parentOptionId?: string | null): Promise<ConfiguratorOptionRow[]> {
   await requireAdmin();
   const supabase = createServerClient();
-  let q = supabase
-    .from("configurator_options")
-.select("id, step_id, parent_option_id, label_en, label_fr, letter, price, discount_percent, image_url, preview_image_url, layer_image_url, layer_z_index, sort_order")
-  .order("sort_order", { ascending: true });
+  const baseSelect = "id, step_id, parent_option_id, label_en, label_fr, letter, price, discount_percent, image_url, preview_image_url, layer_image_url, layer_z_index, sort_order";
+  let q = supabase.from("configurator_options").select(`${baseSelect}, option_group_en, option_group_fr, group_id`).order("sort_order", { ascending: true });
   if (stepId) q = q.eq("step_id", stepId);
   if (parentOptionId === null) q = q.is("parent_option_id", null);
   else if (parentOptionId != null) q = q.eq("parent_option_id", parentOptionId);
   const { data, error } = await q;
-  if (error) throw error;
-  return data ?? [];
+  if (error) {
+    let fallback = supabase.from("configurator_options").select(baseSelect).order("sort_order", { ascending: true });
+    if (stepId) fallback = fallback.eq("step_id", stepId);
+    if (parentOptionId === null) fallback = fallback.is("parent_option_id", null);
+    else if (parentOptionId != null) fallback = fallback.eq("parent_option_id", parentOptionId);
+    const { data: data2, error: err2 } = await fallback;
+    if (err2) throw err2;
+    return (data2 ?? []).map((r) => ({ ...r, group_id: null })) as ConfiguratorOptionRow[];
+  }
+  return (data ?? []) as ConfiguratorOptionRow[];
 }
 
 export async function createConfiguratorStep(input: {
@@ -1831,6 +1849,8 @@ export async function createConfiguratorOption(input: {
   layer_image_url?: string | null;
   layer_z_index?: number;
   sort_order?: number;
+  option_group_en?: string | null;
+  option_group_fr?: string | null;
 }) {
   await requireAdmin();
   if (!input.step_id || !input.label_en?.trim()) throw new Error("Step and label required");
@@ -1849,6 +1869,8 @@ export async function createConfiguratorOption(input: {
     layer_image_url: input.layer_image_url ?? null,
     layer_z_index: input.layer_z_index ?? 0,
     sort_order: input.sort_order ?? 0,
+    option_group_en: input.option_group_en?.trim() || null,
+    option_group_fr: input.option_group_fr?.trim() || null,
   });
   if (error) throw error;
   revalidatePath("/[locale]/configurator", "page");
@@ -1869,6 +1891,8 @@ export async function updateConfiguratorOption(
     layer_z_index?: number;
     sort_order?: number;
     parent_option_id?: string | null;
+    option_group_en?: string | null;
+    option_group_fr?: string | null;
   }
 ) {
   await requireAdmin();
@@ -1886,6 +1910,8 @@ export async function updateConfiguratorOption(
   if (input.layer_z_index !== undefined) updates.layer_z_index = input.layer_z_index;
   if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
   if (input.parent_option_id !== undefined) updates.parent_option_id = input.parent_option_id;
+  if (input.option_group_en !== undefined) updates.option_group_en = input.option_group_en?.trim() || null;
+  if (input.option_group_fr !== undefined) updates.option_group_fr = input.option_group_fr?.trim() || null;
   if (Object.keys(updates).length === 0) return;
   const { error } = await supabase.from("configurator_options").update(updates).eq("id", id);
   if (error) throw error;
@@ -1898,6 +1924,102 @@ export async function deleteConfiguratorOption(id: string) {
   if (!id) throw new Error("Invalid id");
   const supabase = createServerClient();
   const { error } = await supabase.from("configurator_options").delete().eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/configurator", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
+// ——— Configurator option groups (admin selects options by checkbox, creates group with name + image) ———
+export async function getOptionGroupsForStep(stepId: string): Promise<ConfiguratorOptionGroupRow[]> {
+  await requireAdmin();
+  try {
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from("configurator_option_groups")
+      .select("id, step_id, label_en, label_fr, image_url, sort_order")
+      .eq("step_id", stepId)
+      .order("sort_order", { ascending: true });
+    if (error) return [];
+    return (data ?? []) as ConfiguratorOptionGroupRow[];
+  } catch {
+    return [];
+  }
+}
+
+export async function createOptionGroup(input: {
+  step_id: string;
+  label_en: string;
+  label_fr: string;
+  image_url?: string | null;
+  option_ids?: string[];
+}): Promise<string> {
+  await requireAdmin();
+  if (!input.step_id || !input.label_en?.trim()) throw new Error("Step and group name required");
+  const supabase = createServerClient();
+  const { data: row, error: insErr } = await supabase
+    .from("configurator_option_groups")
+    .insert({
+      step_id: input.step_id,
+      label_en: input.label_en.trim(),
+      label_fr: (input.label_fr ?? input.label_en).trim(),
+      image_url: input.image_url?.trim() || null,
+      sort_order: 0,
+    })
+    .select("id")
+    .single();
+  if (insErr) throw insErr;
+  const groupId = row?.id;
+  if (!groupId) throw new Error("Failed to create group");
+  if (input.option_ids?.length) {
+    const { error: upErr } = await supabase
+      .from("configurator_options")
+      .update({ group_id: groupId })
+      .in("id", input.option_ids);
+    if (upErr) throw upErr;
+  }
+  revalidatePath("/[locale]/configurator", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+  return groupId;
+}
+
+export async function updateOptionGroup(
+  id: string,
+  input: { label_en?: string; label_fr?: string; image_url?: string | null }
+) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid id");
+  const supabase = createServerClient();
+  const updates: Record<string, unknown> = {};
+  if (input.label_en !== undefined) updates.label_en = input.label_en.trim();
+  if (input.label_fr !== undefined) updates.label_fr = input.label_fr?.trim() ?? (input.label_en ?? "").trim();
+  if (input.image_url !== undefined) updates.image_url = input.image_url?.trim() || null;
+  if (Object.keys(updates).length === 0) return;
+  const { error } = await supabase.from("configurator_option_groups").update(updates).eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/configurator", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
+export async function deleteOptionGroup(id: string) {
+  await requireAdmin();
+  if (!id) throw new Error("Invalid id");
+  const supabase = createServerClient();
+  await supabase.from("configurator_options").update({ group_id: null }).eq("group_id", id);
+  const { error } = await supabase.from("configurator_option_groups").delete().eq("id", id);
+  if (error) throw error;
+  revalidatePath("/[locale]/configurator", "page");
+  revalidatePath("/[locale]/account/admin", "page");
+}
+
+/** Set group_id for given option ids (null = remove from group). */
+export async function setOptionsGroupId(optionIds: string[], groupId: string | null) {
+  await requireAdmin();
+  const supabase = createServerClient();
+  if (optionIds.length === 0) return;
+  const { error } = await supabase
+    .from("configurator_options")
+    .update({ group_id: groupId })
+    .in("id", optionIds);
   if (error) throw error;
   revalidatePath("/[locale]/configurator", "page");
   revalidatePath("/[locale]/account/admin", "page");
@@ -2226,12 +2348,16 @@ export type LayerTransformRow = {
 /** One dropdown choice under a configurator option (e.g. "Polished" for Case option "Yellow Gold"). */
 export type PublicDropdownItem = { id: string; label_en: string; label_fr: string; price: number; sort_order: number; image_url: string | null };
 
+/** Public: one option group for customer dropdown (name + image). */
+export type PublicOptionGroup = { id: string; step_id: string; label_en: string; label_fr: string; image_url: string | null; sort_order: number };
+
 /** Public: full configurator data for customer (no auth). Used by Configurator component. */
 export type PublicConfiguratorData = {
   stepsMeta: { id: string; step_key: string | null; label_en: string; label_fr: string; optional: boolean; sort_order: number; image_url: string | null }[];
   functionOptions: { id: string; label_en: string; label_fr: string; letter: string; price: number; discount_percent: number }[];
   functionStepsMap: Record<string, string[]>;
-  options: { id: string; step_id: string; parent_option_id: string | null; label_en: string; label_fr: string; letter: string; price: number; discount_percent: number; image_url: string | null; preview_image_url: string | null; layer_image_url: string | null; layer_z_index: number; dropdownItems?: PublicDropdownItem[] }[];
+  options: { id: string; step_id: string; parent_option_id: string | null; label_en: string; label_fr: string; letter: string; price: number; discount_percent: number; image_url: string | null; preview_image_url: string | null; layer_image_url: string | null; layer_z_index: number; option_group_en: string | null; option_group_fr: string | null; group_id: string | null; dropdownItems?: PublicDropdownItem[] }[];
+  optionGroups: PublicOptionGroup[];
   addons: { id: string; step_id: string; label_en: string; label_fr: string; price: number; option_ids: string[] }[];
   configuratorDiscountPercent: number;
   /** Layer position/scale per function (watch type). Key = function_option_id, value = per step_key. */
@@ -2261,11 +2387,23 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
     const functionStep = stepsMeta.find((s) => s.step_key === "function");
     if (!functionStep) return null;
 
-    const { data: allOptions, error: optErr } = await supabase
+    const baseSelect = "id, step_id, parent_option_id, label_en, label_fr, letter, price, discount_percent, image_url, preview_image_url, layer_image_url, layer_z_index";
+    let allOptions: (Record<string, unknown> & { id: string; step_id: string; label_en: string; label_fr: string })[] | null = null;
+    const { data: optionsWithGroups, error: optErrWithGroups } = await supabase
       .from("configurator_options")
-      .select("id, step_id, parent_option_id, label_en, label_fr, letter, price, discount_percent, image_url, preview_image_url, layer_image_url, layer_z_index")
+      .select(`${baseSelect}, option_group_en, option_group_fr, group_id`)
       .order("sort_order", { ascending: true });
-    if (optErr) return null;
+    if (!optErrWithGroups && optionsWithGroups != null) {
+      allOptions = optionsWithGroups as (Record<string, unknown> & { id: string; step_id: string; label_en: string; label_fr: string })[];
+    }
+    if (allOptions == null) {
+      const { data: optionsBase, error: optErr } = await supabase
+        .from("configurator_options")
+        .select(baseSelect)
+        .order("sort_order", { ascending: true });
+      if (optErr) return null;
+      allOptions = (optionsBase ?? []).map((o) => ({ ...o, option_group_en: null, option_group_fr: null, group_id: null })) as (Record<string, unknown> & { id: string; step_id: string; label_en: string; label_fr: string })[];
+    }
 
     const functionOptions = (allOptions ?? []).filter(
       (o) => o.step_id === functionStep.id && (o as { parent_option_id?: string }).parent_option_id == null
@@ -2278,11 +2416,30 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       discount_percent: Number((o as { discount_percent?: number }).discount_percent ?? 0),
     }));
 
+    const mapToPublicOptions = (opts: typeof allOptions): PublicConfiguratorData["options"] =>
+      (opts ?? []).map((o) => ({
+        id: o.id,
+        step_id: o.step_id,
+        parent_option_id: (o as { parent_option_id?: string }).parent_option_id ?? null,
+        label_en: o.label_en,
+        label_fr: o.label_fr,
+        letter: (o as { letter?: string }).letter ?? "A",
+        price: Number((o as { price?: number }).price ?? 0),
+        discount_percent: Number((o as { discount_percent?: number }).discount_percent ?? 0),
+        image_url: (o as { image_url?: string }).image_url ?? null,
+        preview_image_url: (o as { preview_image_url?: string }).preview_image_url ?? null,
+        layer_image_url: (o as { layer_image_url?: string }).layer_image_url ?? null,
+        layer_z_index: Number((o as { layer_z_index?: number }).layer_z_index ?? 0),
+        option_group_en: (o as { option_group_en?: string | null }).option_group_en ?? null,
+        option_group_fr: (o as { option_group_fr?: string | null }).option_group_fr ?? null,
+        group_id: (o as { group_id?: string | null }).group_id ?? null,
+      }));
+
     const { data: fsRows, error: fsErr } = await supabase
       .from("configurator_function_steps")
       .select("function_option_id, step_id, sort_order")
       .order("sort_order", { ascending: true });
-    if (fsErr) return { stepsMeta, functionOptions, functionStepsMap: {}, options: allOptions ?? [], addons: [], configuratorDiscountPercent: 0, layerTransformsByFunction: {} };
+    if (fsErr) return { stepsMeta, functionOptions, functionStepsMap: {}, options: mapToPublicOptions(allOptions), optionGroups: [], addons: [], configuratorDiscountPercent: 0, layerTransformsByFunction: {} };
 
     const functionStepsMap: Record<string, string[]> = {};
     (fsRows ?? []).forEach((r: { function_option_id: string; step_id: string }) => {
@@ -2293,7 +2450,7 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
     const { data: addonsRows, error: addonsErr } = await supabase
       .from("configurator_addons")
       .select("id, step_id, label_en, label_fr, price");
-    if (addonsErr) return { stepsMeta, functionOptions, functionStepsMap, options: allOptions ?? [], addons: [], configuratorDiscountPercent: 0, layerTransformsByFunction: {} };
+    if (addonsErr) return { stepsMeta, functionOptions, functionStepsMap, options: mapToPublicOptions(allOptions), optionGroups: [], addons: [], configuratorDiscountPercent: 0, layerTransformsByFunction: {} };
 
     const { data: addonOptRows } = await supabase.from("configurator_addon_options").select("addon_id, option_id");
     const optionIdsByAddon: Record<string, string[]> = {};
@@ -2328,6 +2485,26 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       });
     });
 
+    let optionGroups: PublicOptionGroup[] = [];
+    try {
+      const { data: groupsRows } = await supabase
+        .from("configurator_option_groups")
+        .select("id, step_id, label_en, label_fr, image_url, sort_order")
+        .order("sort_order", { ascending: true });
+      if (groupsRows?.length) {
+        optionGroups = groupsRows.map((g: { id: string; step_id: string; label_en: string; label_fr: string; image_url?: string | null; sort_order: number }) => ({
+          id: g.id,
+          step_id: g.step_id,
+          label_en: g.label_en,
+          label_fr: g.label_fr,
+          image_url: g.image_url ?? null,
+          sort_order: Number(g.sort_order ?? 0),
+        }));
+      }
+    } catch {
+      // configurator_option_groups table may not exist before migration
+    }
+
     const options = (allOptions ?? []).map((o) => ({
       id: o.id,
       step_id: o.step_id,
@@ -2341,6 +2518,9 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       preview_image_url: (o as { preview_image_url?: string }).preview_image_url ?? null,
       layer_image_url: (o as { layer_image_url?: string }).layer_image_url ?? null,
       layer_z_index: Number((o as { layer_z_index?: number }).layer_z_index ?? 0),
+      option_group_en: (o as { option_group_en?: string | null }).option_group_en ?? null,
+      option_group_fr: (o as { option_group_fr?: string | null }).option_group_fr ?? null,
+      group_id: (o as { group_id?: string | null }).group_id ?? null,
       dropdownItems: dropdownByOptionId[o.id]?.length ? dropdownByOptionId[o.id] : undefined,
     }));
 
@@ -2370,7 +2550,7 @@ export async function getPublicConfiguratorData(): Promise<PublicConfiguratorDat
       });
     }
 
-    return { stepsMeta, functionOptions, functionStepsMap, options, addons, configuratorDiscountPercent, layerTransformsByFunction };
+    return { stepsMeta, functionOptions, functionStepsMap, options, optionGroups, addons, configuratorDiscountPercent, layerTransformsByFunction };
   } catch {
     return null;
   }

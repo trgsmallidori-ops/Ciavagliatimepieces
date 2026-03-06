@@ -43,6 +43,8 @@ type WatchPreviewProps = {
   /** Optional: per-layer scale (1 = 100%). Only used when editing in admin. */
   layerScales?: Record<string, number>;
   onLayerScaleChange?: (key: string, scale: number) => void;
+  /** When set (e.g. in admin), only the layer for this step key is draggable; others get pointer-events: none so the correct layer receives drag. */
+  editableStepKey?: string | null;
 };
 
 export function WatchPreview({
@@ -59,6 +61,7 @@ export function WatchPreview({
   onLayerOffsetChange,
   layerScales,
   onLayerScaleChange,
+  editableStepKey,
 }: WatchPreviewProps) {
   const isFr = locale === "fr";
 
@@ -154,7 +157,11 @@ export function WatchPreview({
         const offset = layerOffsets?.[optionKey] ?? layerOffsets?.[stepKeyKey] ?? { x: 0, y: 0 };
         const scale = layerScales?.[optionKey] ?? layerScales?.[stepKeyKey] ?? 1;
 
+        const isEditableLayer =
+          editableStepKey == null || editableStepKey === "" || layer.stepKey === editableStepKey;
+
         const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
+          if (!isEditableLayer) return;
           if (!onLayerOffsetChange && !onLayerScaleChange) return;
           e.preventDefault();
           e.stopPropagation();
@@ -204,13 +211,14 @@ export function WatchPreview({
             className="absolute inset-0 touch-none"
             style={{
               zIndex: layer.zIndex,
+              pointerEvents: onLayerOffsetChange || onLayerScaleChange ? (isEditableLayer ? "auto" : "none") : "auto",
               transform:
                 offset.x || offset.y || scale !== 1
                   ? `translate(${offset.x}px, ${offset.y}px) scale(${scale})`
                   : undefined,
               transformOrigin: "center center",
               cursor:
-                onLayerOffsetChange || onLayerScaleChange
+                (onLayerOffsetChange || onLayerScaleChange) && isEditableLayer
                   ? draggingKey === groupKey
                     ? "grabbing"
                     : "grab"

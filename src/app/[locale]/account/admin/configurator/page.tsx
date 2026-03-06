@@ -35,12 +35,18 @@ import {
   createDropdownItem,
   updateDropdownItem,
   deleteDropdownItem,
+  getOptionGroupsForStep,
+  createOptionGroup,
+  updateOptionGroup,
+  deleteOptionGroup,
+  setOptionsGroupId,
 } from "../actions";
 import type {
   ConfiguratorStepRow,
   ConfiguratorOptionRow,
   ConfiguratorAddonRow,
   ConfiguratorDropdownItemRow,
+  ConfiguratorOptionGroupRow,
 } from "../actions";
 
 const STEP_KEYS: { key: string; labelEn: string; labelFr: string }[] = [
@@ -88,6 +94,8 @@ export default function AdminConfiguratorPage() {
     preview_image_url: "",
     layer_image_url: "",
     layer_z_index: 0,
+    option_group_en: "",
+    option_group_fr: "",
   });
   const [showAddOption, setShowAddOption] = useState(false);
 
@@ -136,6 +144,14 @@ export default function AdminConfiguratorPage() {
   const [editingDropdownItemId, setEditingDropdownItemId] = useState<string | null>(null);
   const [showAddDropdownItem, setShowAddDropdownItem] = useState(false);
   const [dropdownItemLoading, setDropdownItemLoading] = useState(false);
+  const [optionGroupsForStep, setOptionGroupsForStep] = useState<ConfiguratorOptionGroupRow[]>([]);
+  const [selectedOptionIdsForGroup, setSelectedOptionIdsForGroup] = useState<string[]>([]);
+  const [createGroupModal, setCreateGroupModal] = useState<{ open: boolean; label_en: string; label_fr: string; image_url: string }>({ open: false, label_en: "", label_fr: "", image_url: "" });
+  const [createGroupLoading, setCreateGroupLoading] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editGroupForm, setEditGroupForm] = useState({ label_en: "", label_fr: "", image_url: "" });
+  const [addToGroupId, setAddToGroupId] = useState<string | null>(null);
+  const [addToGroupSelectedIds, setAddToGroupSelectedIds] = useState<string[]>([]);
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   const openCropModalFromFile = useCallback((file: File, onSave: (url: string) => void) => {
@@ -462,6 +478,21 @@ export default function AdminConfiguratorPage() {
     );
   }, [options, currentStepId, currentStepKey, effectiveFunctionId, functionOptions]);
 
+  /** Load option groups when on a non-function step */
+  useEffect(() => {
+    if (currentStepKey === "function" || !currentStepRow?.id) {
+      setOptionGroupsForStep([]);
+      return;
+    }
+    let cancelled = false;
+    getOptionGroupsForStep(currentStepRow.id).then((groups) => {
+      if (!cancelled) setOptionGroupsForStep(groups);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStepKey, currentStepRow?.id]);
+
   const caseAddons = caseStep ? addons.filter((a) => a.step_id === caseStep.id) : [];
   const caseOptions = caseStep ? options.filter((o) => o.step_id === caseStep.id && (o.parent_option_id === null || o.parent_option_id === effectiveFunctionId)) : [];
 
@@ -686,6 +717,8 @@ export default function AdminConfiguratorPage() {
         preview_image_url: optionForm.preview_image_url.trim() || null,
         layer_image_url: optionForm.layer_image_url.trim() || null,
         layer_z_index: optionForm.layer_z_index,
+        option_group_en: optionForm.option_group_en.trim() || null,
+        option_group_fr: optionForm.option_group_fr.trim() || null,
       });
       await load();
       setEditingOptionId(null);
@@ -710,6 +743,8 @@ export default function AdminConfiguratorPage() {
         preview_image_url: optionForm.preview_image_url.trim() || null,
         layer_image_url: optionForm.layer_image_url.trim() || null,
         layer_z_index: optionForm.layer_z_index,
+        option_group_en: optionForm.option_group_en.trim() || null,
+        option_group_fr: optionForm.option_group_fr.trim() || null,
       });
       await load();
       setShowAddOption(false);
@@ -725,6 +760,8 @@ export default function AdminConfiguratorPage() {
         preview_image_url: "",
         layer_image_url: "",
         layer_z_index: 0,
+        option_group_en: "",
+        option_group_fr: "",
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add");
@@ -1100,6 +1137,7 @@ export default function AdminConfiguratorPage() {
               setPendingLayerKey(key);
               setPendingScale(scale);
             }}
+            editableStepKey={currentStepKey}
           />
         </div>
         <div className="flex flex-col items-start gap-2">
@@ -1199,11 +1237,28 @@ export default function AdminConfiguratorPage() {
             </div>
           )}
 
+          {currentStepKey !== "function" && currentStepRow && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/20 bg-white/5 p-3">
+              <p className="text-sm text-white/90">
+                {isFr ? "Cochez les options à grouper, puis cliquez sur « Créer un groupe » pour les nommer et ajouter une image." : "Select options with the checkboxes below, then click Create group to name it and add an image."}
+              </p>
+              <button
+                type="button"
+                disabled={selectedOptionIdsForGroup.length === 0}
+                onClick={() => setCreateGroupModal({ open: true, label_en: "", label_fr: "", image_url: "" })}
+                className="rounded-full border-2 border-[var(--accent)] bg-[var(--accent)]/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent)]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isFr ? "Créer un groupe" : "Create group"} {selectedOptionIdsForGroup.length > 0 ? `(${selectedOptionIdsForGroup.length})` : ""}
+              </button>
+            </div>
+          )}
+
           {/* Option cards – same layout as customer; Edit / Steps (function only) / Delete on each */}
           <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {optionsForCurrentStep.map((opt) => {
               const isEditing = editingOptionId === opt.id;
               const label = isFr ? (opt.label_fr || opt.label_en) : opt.label_en;
+              const isSelectedForGroup = currentStepKey !== "function" && selectedOptionIdsForGroup.includes(opt.id);
               return (
                 <div
                   key={opt.id}
@@ -1218,10 +1273,25 @@ export default function AdminConfiguratorPage() {
                       setPreviewStepIndex(0);
                     }
                   }}
-                  className={`flex flex-col items-center rounded-xl border-2 p-4 transition cursor-pointer ${
+                  className={`relative flex flex-col items-center rounded-xl border-2 p-4 transition cursor-pointer ${
                     isEditing ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-2 ring-[var(--accent)]/30" : "border-foreground/20 bg-white/80 shadow-[0_24px_90px_rgba(15,20,23,0.08)]"
-                  }`}
+                  } ${isSelectedForGroup ? "ring-2 ring-[var(--accent)]" : ""}`}
                 >
+                  {currentStepKey !== "function" && (
+                    <label className="absolute left-2 top-2 z-10 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelectedForGroup}
+                        onChange={() => {
+                          setSelectedOptionIdsForGroup((prev) =>
+                            prev.includes(opt.id) ? prev.filter((id) => id !== opt.id) : [...prev, opt.id]
+                          );
+                        }}
+                        className="h-4 w-4 rounded border-foreground/30 text-[var(--accent)]"
+                      />
+                      <span className="text-xs text-foreground/70">{isFr ? "Groupe" : "Group"}</span>
+                    </label>
+                  )}
                   {(opt as { image_url?: string }).image_url ? (
                     <div className="relative h-14 w-14 overflow-hidden rounded-full bg-white">
                       <img
@@ -1271,6 +1341,8 @@ export default function AdminConfiguratorPage() {
                           preview_image_url: (opt as { preview_image_url?: string }).preview_image_url ?? "",
                           layer_image_url: (opt as { layer_image_url?: string }).layer_image_url ?? "",
                           layer_z_index: (opt as { layer_z_index?: number }).layer_z_index ?? 0,
+                          option_group_en: (opt as { option_group_en?: string | null }).option_group_en ?? "",
+                          option_group_fr: (opt as { option_group_fr?: string | null }).option_group_fr ?? "",
                         });
                         setShowAddOption(false);
                       }}
@@ -1312,7 +1384,7 @@ export default function AdminConfiguratorPage() {
             {currentStepKey === "function" ? (
               <button
                 type="button"
-                onClick={() => { if (!functionStep) return; setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: functionStep.id, parent_option_id: null, label_en: "", label_fr: "", letter: "A", price: 0, discount_percent: 0, image_url: "", preview_image_url: "", layer_image_url: "", layer_z_index: 0 }); }}
+                onClick={() => { if (!functionStep) return; setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: functionStep.id, parent_option_id: null, label_en: "", label_fr: "", letter: "A", price: 0, discount_percent: 0, image_url: "", preview_image_url: "", layer_image_url: "", layer_z_index: 0, option_group_en: "", option_group_fr: "" }); }}
                 disabled={!functionStep}
                 className="flex min-h-[140px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-foreground/30 bg-white/60 p-4 text-foreground/60 transition hover:border-foreground/50 hover:bg-white/80 hover:text-foreground/80 disabled:opacity-50"
               >
@@ -1322,7 +1394,7 @@ export default function AdminConfiguratorPage() {
             ) : currentStepRow ? (
               <button
                 type="button"
-                onClick={() => { setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: currentStepRow.id, parent_option_id: effectiveFunctionId || null, label_en: "", label_fr: "", letter: "A", price: 0, discount_percent: 0, image_url: "", preview_image_url: "", layer_image_url: "", layer_z_index: 0 }); }}
+                onClick={() => { setShowAddOption(true); setEditingOptionId(null); setUploadError(null); setOptionForm({ step_id: currentStepRow.id, parent_option_id: effectiveFunctionId || null, label_en: "", label_fr: "", letter: "A", price: 0, discount_percent: 0, image_url: "", preview_image_url: "", layer_image_url: "", layer_z_index: 0, option_group_en: "", option_group_fr: "" }); }}
                 className="flex min-h-[140px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-foreground/30 bg-white/60 p-4 text-foreground/60 transition hover:border-foreground/50 hover:bg-white/80 hover:text-foreground/80"
               >
                 <span className="text-2xl">+</span>
@@ -1330,6 +1402,269 @@ export default function AdminConfiguratorPage() {
               </button>
             ) : null}
           </div>
+
+          {currentStepKey !== "function" && optionGroupsForStep.length > 0 && (
+            <div className="mt-8 rounded-xl border border-white/20 bg-white/5 p-4">
+              <h3 className="text-lg font-semibold text-white">{isFr ? "Groupes" : "Groups"}</h3>
+              <p className="mt-0.5 text-sm text-white/70">{isFr ? "Retirez ou ajoutez des options, modifiez le nom ou l’image du groupe." : "Remove or add options, edit group name or image."}</p>
+              <div className="mt-4 space-y-4">
+                {optionGroupsForStep.map((grp) => {
+                  const optionsInGroup = optionsForCurrentStep.filter((o) => (o as { group_id?: string }).group_id === grp.id);
+                  return (
+                    <div key={grp.id} className="flex flex-wrap gap-4 rounded-xl border border-foreground/10 bg-white p-4">
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-foreground/15 bg-foreground/5">
+                        {grp.image_url ? (
+                          <img src={grp.image_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-xs text-foreground/50">{isFr ? "Image" : "Image"}</span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground">{isFr ? grp.label_fr : grp.label_en}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          {optionsInGroup.map((o) => (
+                            <span key={o.id} className="inline-flex items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5 text-xs text-foreground">
+                              {isFr ? o.label_fr : o.label_en}
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await setOptionsGroupId([o.id], null);
+                                  await load();
+                                  setOptionGroupsForStep((prev) => prev);
+                                  getOptionGroupsForStep(currentStepRow!.id).then(setOptionGroupsForStep);
+                                }}
+                                className="rounded-full p-0.5 hover:bg-red-100 hover:text-red-600"
+                                aria-label={isFr ? "Retirer du groupe" : "Remove from group"}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddToGroupId(grp.id);
+                              setAddToGroupSelectedIds([]);
+                            }}
+                            className="rounded-full border border-foreground/20 bg-white px-3 py-1 text-xs font-medium text-foreground hover:bg-foreground/5"
+                          >
+                            {isFr ? "Ajouter des options" : "Add options"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingGroupId(grp.id);
+                              setEditGroupForm({ label_en: grp.label_en, label_fr: grp.label_fr, image_url: grp.image_url ?? "" });
+                            }}
+                            className="rounded-full border border-foreground/20 bg-white px-3 py-1 text-xs font-medium text-foreground hover:bg-foreground/5"
+                          >
+                            {isFr ? "Modifier" : "Edit"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!confirm(isFr ? "Supprimer ce groupe ? Les options ne seront pas supprimées." : "Delete this group? Options will not be deleted.")) return;
+                              await deleteOptionGroup(grp.id);
+                              await load();
+                              getOptionGroupsForStep(currentStepRow!.id).then(setOptionGroupsForStep);
+                            }}
+                            className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50"
+                          >
+                            {isFr ? "Supprimer le groupe" : "Delete group"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {addToGroupId && currentStepRow && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-4 text-foreground shadow-xl">
+                <h3 className="text-lg font-semibold">{isFr ? "Ajouter des options au groupe" : "Add options to group"}</h3>
+                <p className="mt-1 text-sm text-foreground/70">{isFr ? "Cochez les options à ajouter." : "Check the options to add."}</p>
+                <div className="mt-3 space-y-2">
+                  {optionsForCurrentStep.filter((o) => (o as { group_id?: string }).group_id !== addToGroupId).length === 0 ? (
+                    <p className="text-sm text-foreground/60">{isFr ? "Toutes les options sont déjà dans ce groupe." : "All options are already in this group."}</p>
+                  ) : (
+                    optionsForCurrentStep
+                      .filter((o) => (o as { group_id?: string }).group_id !== addToGroupId)
+                      .map((o) => (
+                      <label key={o.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-foreground/10 px-3 py-2 hover:bg-foreground/5">
+                        <input
+                          type="checkbox"
+                          checked={addToGroupSelectedIds.includes(o.id)}
+                          onChange={() => setAddToGroupSelectedIds((prev) => (prev.includes(o.id) ? prev.filter((id) => id !== o.id) : [...prev, o.id]))}
+                          className="h-4 w-4 rounded text-[var(--accent)]"
+                        />
+                        <span className="text-sm">{isFr ? o.label_fr : o.label_en}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button type="button" onClick={() => { setAddToGroupId(null); setAddToGroupSelectedIds([]); }} className="rounded-lg border border-foreground/20 px-4 py-2 text-sm font-medium text-foreground hover:bg-foreground/5">
+                    {isFr ? "Annuler" : "Cancel"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (addToGroupSelectedIds.length === 0) return;
+                      await setOptionsGroupId(addToGroupSelectedIds, addToGroupId);
+                      await load();
+                      getOptionGroupsForStep(currentStepRow.id).then(setOptionGroupsForStep);
+                      setAddToGroupId(null);
+                      setAddToGroupSelectedIds([]);
+                    }}
+                    disabled={addToGroupSelectedIds.length === 0 || optionsForCurrentStep.filter((o) => (o as { group_id?: string }).group_id !== addToGroupId).length === 0}
+                    className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {isFr ? "Ajouter" : "Add"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {editingGroupId && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-md rounded-xl bg-white p-4 text-foreground shadow-xl">
+                <h3 className="text-lg font-semibold">{isFr ? "Modifier le groupe" : "Edit group"}</h3>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-foreground/80">{isFr ? "Nom (EN)" : "Name (EN)"}</label>
+                    <input value={editGroupForm.label_en} onChange={(e) => setEditGroupForm((p) => ({ ...p, label_en: e.target.value }))} className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2 text-foreground" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-foreground/80">{isFr ? "Nom (FR)" : "Name (FR)"}</label>
+                    <input value={editGroupForm.label_fr} onChange={(e) => setEditGroupForm((p) => ({ ...p, label_fr: e.target.value }))} className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2 text-foreground" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-foreground/80">{isFr ? "Image du groupe" : "Group image"}</label>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) openCropModalFromFile(file, (url) => setEditGroupForm((p) => ({ ...p, image_url: url })));
+                          e.target.value = "";
+                        }}
+                      />
+                      <input value={editGroupForm.image_url} onChange={(e) => setEditGroupForm((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://…" className="min-w-[200px] flex-1 rounded-lg border border-foreground/20 px-3 py-2 text-sm text-foreground" />
+                    </div>
+                    {editGroupForm.image_url && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <img src={editGroupForm.image_url} alt="" className="h-14 w-14 rounded-lg border border-foreground/15 object-cover" />
+                        <button type="button" onClick={() => setEditGroupForm((p) => ({ ...p, image_url: "" }))} className="text-xs text-foreground/60 underline hover:text-foreground">
+                          {isFr ? "Supprimer l’image" : "Remove image"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button type="button" onClick={() => { setEditingGroupId(null); setEditGroupForm({ label_en: "", label_fr: "", image_url: "" }); }} className="rounded-lg border border-foreground/20 px-4 py-2 text-sm font-medium text-foreground hover:bg-foreground/5">
+                    {isFr ? "Annuler" : "Cancel"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!editingGroupId) return;
+                      await updateOptionGroup(editingGroupId, { label_en: editGroupForm.label_en, label_fr: editGroupForm.label_fr, image_url: editGroupForm.image_url.trim() || null });
+                      await load();
+                      getOptionGroupsForStep(currentStepRow!.id).then(setOptionGroupsForStep);
+                      setEditingGroupId(null);
+                      setEditGroupForm({ label_en: "", label_fr: "", image_url: "" });
+                    }}
+                    className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                  >
+                    {isFr ? "Enregistrer" : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {createGroupModal.open && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-md rounded-xl bg-white p-4 text-foreground shadow-xl">
+                <h3 className="text-lg font-semibold">{isFr ? "Créer un groupe" : "Create group"}</h3>
+                <p className="mt-0.5 text-sm text-foreground/70">{isFr ? "Donnez un nom au groupe et une image (optionnel). L’image s’affichera dans le menu client." : "Name the group and add an image (optional). The image will show in the customer dropdown."}</p>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-foreground/80">{isFr ? "Nom (EN)" : "Name (EN)"}</label>
+                    <input value={createGroupModal.label_en} onChange={(e) => setCreateGroupModal((p) => ({ ...p, label_en: e.target.value }))} className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2 text-foreground" placeholder="e.g. Roman Dials" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-foreground/80">{isFr ? "Nom (FR)" : "Name (FR)"}</label>
+                    <input value={createGroupModal.label_fr} onChange={(e) => setCreateGroupModal((p) => ({ ...p, label_fr: e.target.value }))} className="mt-1 w-full rounded-lg border border-foreground/20 px-3 py-2 text-foreground" placeholder="e.g. Cadrans Romains" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-foreground/80">{isFr ? "Image du groupe" : "Group image"}</label>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="block max-w-[180px] text-xs text-foreground file:mr-2 file:rounded file:border-0 file:bg-foreground/10 file:px-2 file:py-1 file:text-xs file:text-foreground"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) openCropModalFromFile(file, (url) => setCreateGroupModal((p) => ({ ...p, image_url: url })));
+                          e.target.value = "";
+                        }}
+                      />
+                      <input value={createGroupModal.image_url} onChange={(e) => setCreateGroupModal((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://…" className="min-w-[200px] flex-1 rounded-lg border border-foreground/20 px-3 py-2 text-sm text-foreground" />
+                    </div>
+                    {createGroupModal.image_url && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <img src={createGroupModal.image_url} alt="" className="h-14 w-14 rounded-lg border border-foreground/15 object-cover" />
+                        <button type="button" onClick={() => setCreateGroupModal((p) => ({ ...p, image_url: "" }))} className="text-xs text-foreground/60 underline hover:text-foreground">
+                          {isFr ? "Supprimer l’image" : "Remove image"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button type="button" onClick={() => { setCreateGroupModal({ open: false, label_en: "", label_fr: "", image_url: "" }); setSelectedOptionIdsForGroup([]); }} className="rounded-lg border border-foreground/20 px-4 py-2 text-sm font-medium text-foreground hover:bg-foreground/5">
+                    {isFr ? "Annuler" : "Cancel"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!createGroupModal.label_en.trim() || createGroupLoading}
+                    onClick={async () => {
+                      if (!currentStepRow?.id || !createGroupModal.label_en.trim()) return;
+                      setCreateGroupLoading(true);
+                      try {
+                        await createOptionGroup({
+                          step_id: currentStepRow.id,
+                          label_en: createGroupModal.label_en.trim(),
+                          label_fr: createGroupModal.label_fr.trim() || createGroupModal.label_en.trim(),
+                          image_url: createGroupModal.image_url.trim() || null,
+                          option_ids: selectedOptionIdsForGroup,
+                        });
+                        await load();
+                        getOptionGroupsForStep(currentStepRow.id).then(setOptionGroupsForStep);
+                        setCreateGroupModal({ open: false, label_en: "", label_fr: "", image_url: "" });
+                        setSelectedOptionIdsForGroup([]);
+                      } finally {
+                        setCreateGroupLoading(false);
+                      }
+                    }}
+                    className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {createGroupLoading ? "…" : isFr ? "Créer" : "Create"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Preview flow: Back / Next — like the real configurator */}
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4">

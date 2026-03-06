@@ -5,7 +5,7 @@ import Link from "next/link";
 import { WatchPreview } from "@/components/WatchPreview";
 import { CONFIGURATOR_PREVIEW_SIZE_PX } from "@/lib/configurator-constants";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCurrency } from "@/components/CurrencyContext";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { getPublicConfiguratorData } from "@/app/[locale]/account/admin/actions";
@@ -49,6 +49,8 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
   const [loading, setLoading] = useState(false);
   const [addToCartLoading, setAddToCartLoading] = useState(false);
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
+  /** For non-function steps: which group card is expanded (groupId or null). */
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
   const fetchConfigData = useCallback(() => {
     getPublicConfiguratorData().then((data) => {
@@ -139,6 +141,7 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
   const functionOptions = configData?.functionOptions ?? [];
   const functionStepsMap = configData?.functionStepsMap ?? {};
   const options = configData?.options ?? [];
+  const optionGroups = configData?.optionGroups ?? [];
   const addons = configData?.addons ?? [];
   const layerTransformsByFunction = configData?.layerTransformsByFunction ?? {};
 
@@ -189,6 +192,31 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
         (o.parent_option_id === null || o.parent_option_id === functionId)
     );
   }, [options, currentStepId, functionId]);
+
+  /** Groups options by group_id (from optionGroups) for the dropdown; fallback to option_group_en/fr if no groups. */
+  const groupedOptionsForStep = useMemo(() => {
+    const opts = optionsForCurrentStep as { id: string; letter?: string; group_id?: string | null; label_en: string; label_fr: string; option_group_en?: string | null; option_group_fr?: string | null; price: number; discount_percent?: number; image_url?: string | null; preview_image_url?: string | null }[];
+    const groupsForStep = optionGroups.filter((g: { step_id: string }) => g.step_id === currentStepId);
+    const groupById = new Map(groupsForStep.map((g: { id: string; label_en: string; label_fr: string; image_url: string | null }) => [g.id, g]));
+    const ungroupedKey = "__ungrouped__";
+    const byGroupId = new Map<string, typeof opts>();
+    byGroupId.set(ungroupedKey, []);
+    opts.forEach((o) => {
+      const gid = o.group_id?.trim() || ungroupedKey;
+      if (!byGroupId.has(gid)) byGroupId.set(gid, []);
+      byGroupId.get(gid)!.push(o);
+    });
+    const result: { groupId: string; groupLabel: string; groupImageUrl: string | null; options: typeof opts }[] = [];
+    groupsForStep.forEach((g: { id: string; label_en: string; label_fr: string; image_url: string | null; sort_order: number }) => {
+      const items = byGroupId.get(g.id);
+      if (items?.length) result.push({ groupId: g.id, groupLabel: isFr ? g.label_fr : g.label_en, groupImageUrl: g.image_url, options: items });
+    });
+    const ungrouped = byGroupId.get(ungroupedKey) ?? [];
+    if (ungrouped.length) {
+      result.push({ groupId: "", groupLabel: isFr ? "Autres" : "Other", groupImageUrl: null, options: ungrouped });
+    }
+    return result;
+  }, [optionsForCurrentStep, optionGroups, currentStepId, isFr]);
 
   const selectedId = selections[currentStepKey] ?? null;
   const isLastStep = stepIndex === stepsForFunction.length - 1;
@@ -609,108 +637,267 @@ export default function Configurator({ locale, editCartItemId, initialData }: Co
             {isOptionalStep ? ` • ${isFr ? "Optionnel" : "Optional"}` : ""}
           </p>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {optionsForCurrentStep.map((opt) => {
-              const selected = selectedId === opt.id;
-              const label = isFr ? opt.label_fr : opt.label_en;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setSelection(opt.id)}
-                  className={`flex flex-col items-center rounded-xl border-2 p-4 text-left transition ${
-                    selected
-                      ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-2 ring-[var(--accent)]/30"
-                      : "border-foreground/20 bg-white/80 shadow-[0_24px_90px_rgba(15,20,23,0.08)] hover:border-foreground/35"
-                  }`}
-                >
-                  <div className="relative">
-                    {(opt as { image_url?: string }).image_url || (opt as { preview_image_url?: string }).preview_image_url ? (
-                      <div className={`relative h-14 w-14 overflow-hidden rounded-full bg-white ${selected ? "ring-2 ring-[var(--accent)]" : ""}`}>
-                        <Image
-                          src={(opt as { image_url?: string }).image_url || (opt as { preview_image_url?: string }).preview_image_url!}
-                          alt=""
-                          width={56}
-                          height={56}
-                          className="h-full w-full object-cover"
-                          unoptimized={(opt as { image_url?: string }).image_url?.startsWith("http") ?? false}
-                        />
-                        {selected && (
-                          <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)]">
-                            <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <>
-                        <div
-                          className={`flex h-14 w-14 items-center justify-center rounded-full text-lg font-semibold ${
-                            selected ? "bg-[var(--accent)] text-white" : "bg-foreground/10 text-foreground/90"
-                          }`}
-                        >
-                          {opt.letter}
+          {currentStepKey === "function" ? (
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {optionsForCurrentStep.map((opt) => {
+                const selected = selectedId === opt.id;
+                const label = isFr ? opt.label_fr : opt.label_en;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setSelection(opt.id)}
+                    className={`flex flex-col items-center rounded-xl border-2 p-4 text-left transition ${
+                      selected
+                        ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-2 ring-[var(--accent)]/30"
+                        : "border-foreground/20 bg-white/80 shadow-[0_24px_90px_rgba(15,20,23,0.08)] hover:border-foreground/35"
+                    }`}
+                  >
+                    <div className="relative">
+                      {(opt as { image_url?: string }).image_url || (opt as { preview_image_url?: string }).preview_image_url ? (
+                        <div className={`relative h-14 w-14 overflow-hidden rounded-full bg-white ${selected ? "ring-2 ring-[var(--accent)]" : ""}`}>
+                          <Image
+                            src={(opt as { image_url?: string }).image_url || (opt as { preview_image_url?: string }).preview_image_url!}
+                            alt=""
+                            width={56}
+                            height={56}
+                            className="h-full w-full object-cover"
+                            unoptimized={(opt as { image_url?: string }).image_url?.startsWith("http") ?? false}
+                          />
+                          {selected && (
+                            <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)]">
+                              <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          )}
                         </div>
-                        {selected && (
-                          <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)]">
-                            <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      ) : (
+                        <>
+                          <div
+                            className={`flex h-14 w-14 items-center justify-center rounded-full text-lg font-semibold ${
+                              selected ? "bg-[var(--accent)] text-white" : "bg-foreground/10 text-foreground/90"
+                            }`}
+                          >
+                            {opt.letter}
+                          </div>
+                          {selected && (
+                            <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)]">
+                              <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <span className="mt-2 block w-full truncate text-center text-sm font-medium text-foreground">{label}</span>
+                    <span className="text-sm font-medium text-[var(--accent)]">
+                      {formatPrice(optionEffectivePrice(opt))}
+                      {((opt as { discount_percent?: number }).discount_percent ?? 0) > 0 && (
+                        <span className="ml-1.5 text-xs text-foreground/60 line-through">{formatPrice(Number(opt.price))}</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-6 space-y-4">
+              {groupedOptionsForStep.map(({ groupId, groupLabel, groupImageUrl, options: groupOpts }) => {
+                const isGroup = !!groupId;
+                const isExpanded = expandedGroupId === groupId;
+                if (!isGroup) {
+                  return (
+                    <div key="other" className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                      {groupOpts.map((opt) => {
+                        const selected = selectedId === opt.id;
+                        const label = isFr ? opt.label_fr : opt.label_en;
+                        const imgUrl = (opt as { image_url?: string }).image_url || (opt as { preview_image_url?: string }).preview_image_url;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setSelection(opt.id)}
+                            className={`flex flex-col items-center rounded-xl border-2 p-4 text-left transition ${
+                              selected
+                                ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-2 ring-[var(--accent)]/30"
+                                : "border-foreground/20 bg-white/80 shadow-[0_24px_90px_rgba(15,20,23,0.08)] hover:border-foreground/35"
+                            }`}
+                          >
+                            <div className="relative">
+                              {imgUrl ? (
+                                <div className={`relative h-14 w-14 overflow-hidden rounded-full bg-white ${selected ? "ring-2 ring-[var(--accent)]" : ""}`}>
+                                  <Image src={imgUrl} alt="" width={56} height={56} className="h-full w-full object-cover" unoptimized={imgUrl.startsWith("http")} />
+                                  {selected && (
+                                    <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)]">
+                                      <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <>
+                                  <div className={`flex h-14 w-14 items-center justify-center rounded-full text-lg font-semibold ${selected ? "bg-[var(--accent)] text-white" : "bg-foreground/10 text-foreground/90"}`}>
+                                    {opt.letter}
+                                  </div>
+                                  {selected && (
+                                    <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)]">
+                                      <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                            <span className="mt-2 block w-full truncate text-center text-sm font-medium text-foreground">{label}</span>
+                            <span className="text-sm font-medium text-[var(--accent)]">
+                              {formatPrice(optionEffectivePrice(opt))}
+                              {((opt as { discount_percent?: number }).discount_percent ?? 0) > 0 && (
+                                <span className="ml-1.5 text-xs text-foreground/60 line-through">{formatPrice(Number(opt.price))}</span>
+                              )}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={groupId} className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedGroupId((prev) => (prev === groupId ? null : groupId))}
+                      className={`flex w-full flex-col items-center rounded-xl border-2 p-4 text-left transition sm:flex-row sm:items-center sm:justify-between ${
+                        isExpanded
+                          ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-2 ring-[var(--accent)]/30"
+                          : "border-foreground/20 bg-white/80 shadow-[0_24px_90px_rgba(15,20,23,0.08)] hover:border-foreground/35"
+                      }`}
+                    >
+                      <div className="flex flex-1 items-center gap-3">
+                        {groupImageUrl ? (
+                          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-white">
+                            <Image src={groupImageUrl} alt="" width={56} height={56} className="h-full w-full object-cover" unoptimized={groupImageUrl.startsWith("http")} />
+                          </div>
+                        ) : (
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-foreground/10 text-foreground/70">
+                            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                             </svg>
                           </div>
                         )}
-                      </>
+                        <span className="font-medium text-foreground">{groupLabel}</span>
+                        <span className="text-sm text-foreground/60">({groupOpts.length} {isFr ? "options" : "options"})</span>
+                      </div>
+                      <svg className={`mt-2 h-5 w-5 shrink-0 text-foreground/60 sm:mt-0 ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {isExpanded && (
+                      <div className="grid gap-4 pl-0 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:pl-4">
+                        {groupOpts.map((opt) => {
+                          const selected = selectedId === opt.id;
+                          const label = isFr ? opt.label_fr : opt.label_en;
+                          const imgUrl = (opt as { image_url?: string }).image_url || (opt as { preview_image_url?: string }).preview_image_url;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setSelection(opt.id)}
+                              className={`flex flex-col items-center rounded-xl border-2 p-4 text-left transition ${
+                                selected
+                                  ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-2 ring-[var(--accent)]/30"
+                                  : "border-foreground/20 bg-white/80 shadow-[0_24px_90px_rgba(15,20,23,0.08)] hover:border-foreground/35"
+                              }`}
+                            >
+                              <div className="relative">
+                                {imgUrl ? (
+                                  <div className={`relative h-14 w-14 overflow-hidden rounded-full bg-white ${selected ? "ring-2 ring-[var(--accent)]" : ""}`}>
+                                    <Image src={imgUrl} alt="" width={56} height={56} className="h-full w-full object-cover" unoptimized={imgUrl.startsWith("http")} />
+                                    {selected && (
+                                      <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)]">
+                                        <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className={`flex h-14 w-14 items-center justify-center rounded-full text-lg font-semibold ${selected ? "bg-[var(--accent)] text-white" : "bg-foreground/10 text-foreground/90"}`}>
+                                      {opt.letter}
+                                    </div>
+                                    {selected && (
+                                      <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)]">
+                                        <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              <span className="mt-2 block w-full truncate text-center text-sm font-medium text-foreground">{label}</span>
+                              <span className="text-sm font-medium text-[var(--accent)]">
+                                {formatPrice(optionEffectivePrice(opt))}
+                                {((opt as { discount_percent?: number }).discount_percent ?? 0) > 0 && (
+                                  <span className="ml-1.5 text-xs text-foreground/60 line-through">{formatPrice(Number(opt.price))}</span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-                  <span className="mt-2 block w-full truncate text-center text-sm font-medium text-foreground">{label}</span>
-                  <span className="text-sm font-medium text-[var(--accent)]">
-                    {formatPrice(optionEffectivePrice(opt))}
-                    {((opt as { discount_percent?: number }).discount_percent ?? 0) > 0 && (
-                      <span className="ml-1.5 text-xs text-foreground/60 line-through">{formatPrice(Number(opt.price))}</span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {selectedId && (() => {
             const selectedOpt = optionsForCurrentStep.find((o) => o.id === selectedId);
             const dropdownItems = (selectedOpt as { dropdownItems?: { id: string; label_en: string; label_fr: string; price: number; image_url?: string | null }[] } | undefined)?.dropdownItems;
             if (!dropdownItems?.length) return null;
             const selectedDropdownId = dropdownSelections[selectedId] ?? dropdownItems[0]?.id;
-            const selectedDropdownItem = dropdownItems.find((d) => d.id === selectedDropdownId);
-            const selectedImageUrl = selectedDropdownItem && typeof (selectedDropdownItem as { image_url?: string | null }).image_url === "string" ? (selectedDropdownItem as { image_url: string }).image_url : null;
             return (
               <div className="mt-6 rounded-xl border border-foreground/15 bg-white/90 p-4 shadow-[0_24px_90px_rgba(15,20,23,0.06)]">
-                <label className="block text-sm font-medium text-foreground">
+                <p className="mb-3 text-sm font-medium text-foreground">
                   {isFr ? "Option supplémentaire" : "Additional option"}
-                </label>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <select
-                    value={selectedDropdownId}
-                    onChange={(e) => setDropdownSelections((prev) => ({ ...prev, [selectedId]: e.target.value }))}
-                    className="w-full max-w-xs rounded-lg border border-foreground/25 bg-white px-3 py-2 text-foreground focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                  >
-                    {dropdownItems.map((dd) => (
-                      <option key={dd.id} value={dd.id}>
-                        {isFr ? dd.label_fr : dd.label_en}
-                        {Number(dd.price ?? 0) > 0 ? ` (+${formatPrice(Number(dd.price))})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedImageUrl && (
-                    <span className="relative flex h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-foreground/15 bg-white">
-                      <Image
-                        src={selectedImageUrl}
-                        alt=""
-                        width={56}
-                        height={56}
-                        className="h-full w-full object-cover"
-                        unoptimized={selectedImageUrl.startsWith("http")}
-                      />
-                    </span>
-                  )}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {dropdownItems.map((dd) => {
+                    const isSelected = selectedDropdownId === dd.id;
+                    const imgUrl = dd && typeof (dd as { image_url?: string | null }).image_url === "string" ? (dd as { image_url: string }).image_url : null;
+                    return (
+                      <button
+                        key={dd.id}
+                        type="button"
+                        onClick={() => setDropdownSelections((prev) => ({ ...prev, [selectedId]: dd.id }))}
+                        className={`flex flex-col items-center rounded-xl border-2 p-3 transition ${
+                          isSelected
+                            ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-2 ring-[var(--accent)]/30"
+                            : "border-foreground/20 bg-white hover:border-foreground/35"
+                        }`}
+                      >
+                        {imgUrl ? (
+                          <div className={`relative h-12 w-12 overflow-hidden rounded-lg bg-white ${isSelected ? "ring-2 ring-[var(--accent)]" : ""}`}>
+                            <Image src={imgUrl} alt="" width={48} height={48} className="h-full w-full object-cover" unoptimized={imgUrl.startsWith("http")} />
+                          </div>
+                        ) : (
+                          <div className={`flex h-12 w-12 items-center justify-center rounded-lg text-sm font-semibold ${isSelected ? "bg-[var(--accent)] text-white" : "bg-foreground/10 text-foreground/90"}`}>
+                            {(isFr ? dd.label_fr : dd.label_en).slice(0, 1)}
+                          </div>
+                        )}
+                        <span className="mt-1.5 max-w-[100px] truncate text-center text-xs font-medium text-foreground">{isFr ? dd.label_fr : dd.label_en}</span>
+                        {Number(dd.price ?? 0) > 0 && (
+                          <span className="text-xs text-[var(--accent)]">+{formatPrice(Number(dd.price))}</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             );
