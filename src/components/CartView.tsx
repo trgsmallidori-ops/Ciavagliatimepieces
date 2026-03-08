@@ -201,7 +201,7 @@ export default function CartView({ locale, labels }: { locale: string; labels: C
                       fill
                       className="object-cover"
                       sizes="80px"
-                      unoptimized={item.image_url?.startsWith("http") || item.image_url?.startsWith("data:") ?? false}
+                      unoptimized={(item.image_url?.startsWith("http") || item.image_url?.startsWith("data:")) ?? false}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
