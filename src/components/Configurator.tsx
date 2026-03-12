@@ -760,7 +760,14 @@ export default function Configurator({ locale, editCartItemId, productId, initia
             const isCompleted = stepIndex > i || (stepIndex === i && (hasSelection || isOptional));
             const isActive = stepIndex === i;
             return (
-              <div key={stepKey} className="flex flex-col items-center gap-1">
+              <button
+                key={stepKey}
+                type="button"
+                onClick={() => setStepIndex(i)}
+                className="flex flex-col items-center gap-1 rounded-lg transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--logo-green)]"
+                aria-current={isActive ? "step" : undefined}
+                aria-label={stepLabel(stepKey)}
+              >
                 <div
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded border-2 transition ${
                     isCompleted || isActive
@@ -784,7 +791,7 @@ export default function Configurator({ locale, editCartItemId, productId, initia
                   {stepLabel(stepKey)}
                 </span>
                 {isActive && <div className="h-0.5 w-8 bg-white" />}
-              </div>
+              </button>
             );
           })}
         </div>
